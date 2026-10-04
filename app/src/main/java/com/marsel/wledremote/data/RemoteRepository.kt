@@ -1,6 +1,7 @@
 package com.marsel.wledremote.data
 
 import android.content.Context
+import com.marsel.wledremote.model.AmbilightEngineType
 import com.marsel.wledremote.model.AmbilightSettingsUiState
 import com.marsel.wledremote.model.CaptureMode
 import com.marsel.wledremote.model.ConnectionStatus
@@ -127,7 +128,14 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
                         smartAudioEnabled = json.optBoolean("smartAudioEnabled", current.smartAudioEnabled),
                         ambilightEnabled = json.optBoolean("ambilightEnabled", current.ambilightEnabled),
                         captureMode = CaptureMode.fromWire(json.optString("captureMode", current.captureMode.wireValue)),
-                        bufferSizeSec = json.optInt("bufferSizeSec", current.bufferSizeSec) // ПАРСИМ БУФЕР
+                        bufferSizeSec = json.optInt("bufferSizeSec", current.bufferSizeSec), // ПАРСИМ БУФЕР
+                        ambilightEngine = AmbilightEngineType.fromWire(
+                            json.optString("ambilightEngine", current.ambilightEngine.wireValue)
+                        ),
+                        v2Smoothing = json.optInt("v2Smoothing", current.v2Smoothing),
+                        v2Saturation = json.optInt("v2Saturation", current.v2Saturation),
+                        v2BlackThreshold = json.optInt("v2BlackThreshold", current.v2BlackThreshold),
+                        v2DetectBars = json.optBoolean("v2DetectBars", current.v2DetectBars)
                     )
                 }
             }
@@ -183,6 +191,11 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
             put("ambilightEnabled", settings.ambilightEnabled)
             put("captureMode", settings.captureMode.wireValue)
             put("bufferSizeSec", settings.bufferSizeSec) // ОТПРАВЛЯЕМ БУФЕР
+            put("ambilightEngine", settings.ambilightEngine.wireValue)
+            put("v2Smoothing", settings.v2Smoothing)
+            put("v2Saturation", settings.v2Saturation)
+            put("v2BlackThreshold", settings.v2BlackThreshold)
+            put("v2DetectBars", settings.v2DetectBars)
         }
         sendCommand(json)
     }

@@ -13,6 +13,17 @@ enum class CaptureMode(val wireValue: String, val label: String) {
     }
 }
 
+/** Какой движок подсветки включён в плеере. */
+enum class AmbilightEngineType(val wireValue: String, val label: String) {
+    CLASSIC("classic", "Классический"),
+    V2("v2", "Новый (v2)");
+
+    companion object {
+        fun fromWire(value: String): AmbilightEngineType =
+            values().firstOrNull { it.wireValue == value } ?: CLASSIC
+    }
+}
+
 data class PlaybackUiState(
     val title: String = "Ничего не воспроизводится",
     val subtitle: String? = null,
@@ -44,5 +55,12 @@ data class AmbilightSettingsUiState(
 
     val ambilightEnabled: Boolean = true,
     val captureMode: CaptureMode = CaptureMode.AUTO,
-    val bufferSizeSec: Int = 50 // НОВЫЙ ПАРАМЕТР БУФЕРА
+    val bufferSizeSec: Int = 50, // НОВЫЙ ПАРАМЕТР БУФЕРА
+
+    // Движок подсветки и настройки нового движка (v2)
+    val ambilightEngine: AmbilightEngineType = AmbilightEngineType.CLASSIC,
+    val v2Smoothing: Int = 50,
+    val v2Saturation: Int = 115,
+    val v2BlackThreshold: Int = 15,
+    val v2DetectBars: Boolean = false
 )

@@ -3,6 +3,7 @@ package com.marsel.wledremote.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.marsel.wledremote.data.RemoteRepository
+import com.marsel.wledremote.model.AmbilightEngineType
 import com.marsel.wledremote.model.AmbilightSettingsUiState
 import com.marsel.wledremote.model.CaptureMode
 import com.marsel.wledremote.model.ConnectionStatus
@@ -36,6 +37,13 @@ class SettingsViewModel(private val repository: RemoteRepository) : ViewModel() 
 
     fun updateAmbilightEnabled(value: Boolean) = repository.updateSettings { it.copy(ambilightEnabled = value) }
     fun updateCaptureMode(mode: CaptureMode) = repository.updateSettings { it.copy(captureMode = mode) }
+
+    fun updateAmbilightEngine(engine: AmbilightEngineType) =
+        repository.updateSettings { it.copy(ambilightEngine = engine) }
+    fun updateV2Smoothing(value: Int) = repository.updateSettings { it.copy(v2Smoothing = value) }
+    fun updateV2Saturation(value: Int) = repository.updateSettings { it.copy(v2Saturation = value) }
+    fun updateV2BlackThreshold(value: Int) = repository.updateSettings { it.copy(v2BlackThreshold = value) }
+    fun updateV2DetectBars(value: Boolean) = repository.updateSettings { it.copy(v2DetectBars = value) }
 
     // НОВАЯ ФУНКЦИЯ ДЛЯ БУФЕРА
     fun updateBufferSize(value: Int) = repository.updateSettings { it.copy(bufferSizeSec = value) }

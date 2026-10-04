@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.marsel.wledremote.model.AmbilightEngineType
 import com.marsel.wledremote.model.CaptureMode
 import com.marsel.wledremote.ui.components.LabeledSlider
 import com.marsel.wledremote.ui.components.LabeledSwitch
@@ -98,6 +99,39 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 }
             }
             item { Spacer(Modifier.height(8.dp)) }
+
+            // Выбор движка подсветки; применяется сразу, даже во время просмотра
+            item {
+                Text("Движок подсветки", style = MaterialTheme.typography.labelMedium)
+            }
+            items(AmbilightEngineType.values().size) { index ->
+                val engine = AmbilightEngineType.values()[index]
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.updateAmbilightEngine(engine) }
+                        .padding(vertical = 4.dp)
+                ) {
+                    RadioButton(
+                        selected = state.ambilightEngine == engine,
+                        onClick = { viewModel.updateAmbilightEngine(engine) }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(engine.label)
+                }
+            }
+            item { Spacer(Modifier.height(8.dp)) }
+
+            // Настройки, которые есть только у нового движка
+            if (state.ambilightEngine == AmbilightEngineType.V2) {
+                item { SectionHeader("Новый движок (v2)") }
+                item { LabeledSlider("Плавность v2 (0-100)", state.v2Smoothing, 0f..100f, viewModel::updateV2Smoothing) }
+                item { LabeledSlider("Насыщенность v2 (100 = как на экране)", state.v2Saturation, 0f..200f, viewModel::updateV2Saturation) }
+                item { LabeledSlider("Порог чёрного v2 (0-255)", state.v2BlackThreshold, 0f..255f, viewModel::updateV2BlackThreshold) }
+                item { LabeledSwitch("Определять чёрные полосы (21:9)", state.v2DetectBars, viewModel::updateV2DetectBars) }
+                item { Spacer(Modifier.height(8.dp)) }
+            }
         }
 
         item { LabeledSlider("Яркость (0-100)", state.brightness, 0f..100f, viewModel::updateBrightness) }
