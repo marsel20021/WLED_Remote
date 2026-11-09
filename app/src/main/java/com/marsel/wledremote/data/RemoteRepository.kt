@@ -1,9 +1,11 @@
 package com.marsel.wledremote.data
 
 import android.content.Context
+import android.util.Log
 import com.marsel.wledremote.model.AmbilightSettingsUiState
 import com.marsel.wledremote.model.CaptureMode
 import com.marsel.wledremote.model.ConnectionStatus
+import com.marsel.wledremote.model.EngineKind
 import com.marsel.wledremote.model.PlaybackUiState
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -65,6 +67,8 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
 
     private var connectionJob: Job? = null
     private var wsSession: DefaultClientWebSocketSession? = null
+    private var lastLoggedTitle: String? = null
+    private var lastLoggedMovie: String? = null
 
     init {
         val savedIp = localPrefs.savedTvIp
@@ -127,7 +131,21 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
                         smartAudioEnabled = json.optBoolean("smartAudioEnabled", current.smartAudioEnabled),
                         ambilightEnabled = json.optBoolean("ambilightEnabled", current.ambilightEnabled),
                         captureMode = CaptureMode.fromWire(json.optString("captureMode", current.captureMode.wireValue)),
-                        bufferSizeSec = json.optInt("bufferSizeSec", current.bufferSizeSec) // ПАРСИМ БУФЕР
+                        bufferSizeSec = json.optInt("bufferSizeSec", current.bufferSizeSec),
+                        engine = EngineKind.fromWire(json.optString("ambilightEngine", current.engine.wireValue)),
+                        v2Smoothing = json.optInt("v2Smoothing", current.v2Smoothing),
+                        v2Saturation = json.optInt("v2Saturation", current.v2Saturation),
+                        v2BlackThreshold = json.optInt("v2BlackThreshold", current.v2BlackThreshold),
+                        v2DetectBars = json.optBoolean("v2DetectBars", current.v2DetectBars),
+                        labVivid = json.optInt("labVivid", current.labVivid),
+                        labSpeed = json.optInt("labSpeed", current.labSpeed),
+                        labEdge = json.optInt("labEdge", current.labEdge),
+                        labDepth = json.optInt("labDepth", current.labDepth),
+                        labHighlight = json.optString("labHighlight", current.labHighlight),
+                        labGlow = json.optString("labGlow", current.labGlow),
+                        labJitter = json.optString("labJitter", current.labJitter),
+                        labFps = json.optString("labFps", current.labFps),
+                        labDetectBars = json.optBoolean("labDetectBars", current.labDetectBars)
                     )
                 }
             }
@@ -138,9 +156,18 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
                 }
             }
             "playbackState" -> {
+                val newTitle = json.optString("title", "Без названия")
+                val newMovie = json.optString("movieTitle", "").takeIf { it.isNotBlank() }
+                if (newTitle != lastLoggedTitle || newMovie != lastLoggedMovie) {
+                    lastLoggedTitle = newTitle
+                    lastLoggedMovie = newMovie
+                    // Смотреть в logcat по тегу WledRemote: что именно прислал плеер/Vokino
+                    Log.d("WledRemote", "title='$newTitle' movieTitle='$newMovie' extras=${json.optString("intentInfo")}")
+                }
                 _playbackState.update { state ->
                     state.copy(
-                        title = json.optString("title", "Без названия"),
+                        title = newTitle,
+                        movieTitle = newMovie,
                         isPlaying = json.optBoolean("isPlaying", false),
                         positionMs = json.optLong("positionMs", 0L),
                         durationMs = json.optLong("durationMs", 0L),
@@ -182,7 +209,21 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
             put("smartAudioEnabled", settings.smartAudioEnabled)
             put("ambilightEnabled", settings.ambilightEnabled)
             put("captureMode", settings.captureMode.wireValue)
-            put("bufferSizeSec", settings.bufferSizeSec) // ОТПРАВЛЯЕМ БУФЕР
+            put("bufferSizeSec", settings.bufferSizeSec)
+            put("ambilightEngine", settings.engine.wireValue)
+            put("v2Smoothing", settings.v2Smoothing)
+            put("v2Saturation", settings.v2Saturation)
+            put("v2BlackThreshold", settings.v2BlackThreshold)
+            put("v2DetectBars", settings.v2DetectBars)
+            put("labVivid", settings.labVivid)
+            put("labSpeed", settings.labSpeed)
+            put("labEdge", settings.labEdge)
+            put("labDepth", settings.labDepth)
+            put("labHighlight", settings.labHighlight)
+            put("labGlow", settings.labGlow)
+            put("labJitter", settings.labJitter)
+            put("labFps", settings.labFps)
+            put("labDetectBars", settings.labDetectBars)
         }
         sendCommand(json)
     }

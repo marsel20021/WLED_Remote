@@ -6,8 +6,11 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.media3.common.util.UnstableApi
@@ -15,31 +18,51 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.marsel.wledremote.MainActivity
 import com.marsel.wledremote.WledRemoteApp
+import com.marsel.wledremote.data.PosterArt
+import com.marsel.wledremote.data.PosterRepository
+import com.marsel.wledremote.data.PosterTitle
 import com.marsel.wledremote.data.RemoteRepository
+import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.model.PlaybackUiState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @UnstableApi
 class PlaybackService : Service() {
 
     private var mediaSession: MediaSession? = null
+    private var remotePlayer: RemotePlayer? = null
     private lateinit var repository: RemoteRepository
     private lateinit var notificationManager: NotificationManager
+    private lateinit var posters: PosterRepository
 
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private var isAppInForeground = true
+
+    // Постер: для какого названия уже искали, текущая картинка для плашки
+    private var posterKey: String? = null
+    private var posterJob: Job? = null
+    private var largeIcon: Bitmap? = null
+
+    // Плашка показана / отложенное скрытие, когда связь с ТВ пропала
+    private var notificationActive = false
+    private var hideJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
 
         repository = (application as WledRemoteApp).repository
         notificationManager = getSystemService(NotificationManager::class.java)
+        posters = PosterRepository(applicationContext)
 
         val player = RemotePlayer(repository, mainLooper)
+        remotePlayer = player
 
         val sessionActivityIntent = PendingIntent.getActivity(
             this,
@@ -56,32 +79,96 @@ class PlaybackService : Service() {
 
         scope.launch {
             repository.playbackState.collect { playback ->
-                if (!isAppInForeground) updateNotification(playback)
+                refreshPoster(playback)
+                if (shouldShowNotification()) updateNotification(playback)
             }
         }
         scope.launch {
-            repository.connectionStatus.collect {
-                if (!isAppInForeground) updateNotification(repository.playbackState.value)
+            repository.connectionStatus.collect { status -> onConnectionChanged(status) }
+        }
+    }
+
+    /** Плашка нужна, только когда приложение свёрнуто И есть связь с ТВ. */
+    private fun shouldShowNotification() =
+        !isAppInForeground && repository.connectionStatus.value == ConnectionStatus.CONNECTED
+
+    private fun onConnectionChanged(status: ConnectionStatus) {
+        if (status == ConnectionStatus.CONNECTED) {
+            hideJob?.cancel()
+            hideJob = null
+            if (shouldShowNotification()) updateNotification(repository.playbackState.value)
+        } else if (notificationActive && hideJob?.isActive != true) {
+            // Связь пропала (ТВ выключили). Небольшая пауза, чтобы плашка не мигала при коротком обрыве Wi-Fi.
+            hideJob = scope.launch {
+                delay(HIDE_DELAY_MS)
+                hideNotification()
             }
         }
     }
 
+    // ---------- Постер ----------
+
+    private fun refreshPoster(playback: PlaybackUiState) {
+        val raw = playback.movieTitle?.takeIf { it.isNotBlank() } ?: playback.title
+        val query = PosterTitle.parse(raw)
+        val key = if (query != null) "${query.title}|${query.year}" else "raw:$raw"
+        if (key == posterKey) return
+        posterKey = key
+
+        posterJob?.cancel()
+        largeIcon = null
+        remotePlayer?.setArtwork(null)
+
+        posterJob = scope.launch {
+            val found = if (query != null) posters.load(raw) else null
+            val art = found ?: withContext(Dispatchers.Default) { PosterArt.generate(query?.title ?: raw) }
+            if (found == null) Log.d(TAG, "Постер не найден, рисую заглушку для '$raw'")
+            largeIcon = BitmapFactory.decodeByteArray(art, 0, art.size)
+            remotePlayer?.setArtwork(art)
+            if (shouldShowNotification()) updateNotification(repository.playbackState.value)
+        }
+    }
+
+    // ---------- Плашка ----------
+
     private fun updateNotification(playback: PlaybackUiState) {
+        val notification = buildNotification(playback)
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
         } else 0
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(playback), type)
+        try {
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+        } catch (e: Exception) {
+            // Android 12+ не даёт переводить сервис на передний план из фона - показываем обычное уведомление
+            Log.w(TAG, "startForeground запрещён: $e")
+            notificationManager.notify(NOTIFICATION_ID, notification)
+        }
+        notificationActive = true
+    }
+
+    private fun hideNotification() {
+        hideJob = null
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        notificationManager.cancel(NOTIFICATION_ID)
+        notificationActive = false
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             "APP_IN_FOREGROUND" -> {
                 isAppInForeground = true
-                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                hideJob?.cancel()
+                hideNotification()
             }
             "APP_IN_BACKGROUND" -> {
                 isAppInForeground = false
-                updateNotification(repository.playbackState.value)
+                val startedAsForeground = intent?.getBooleanExtra(EXTRA_FOREGROUND, false) == true
+                if (shouldShowNotification() || startedAsForeground) {
+                    // Если нас запустили через startForegroundService, startForeground обязателен,
+                    // иначе система убьёт приложение. Связь успела пропасть - плашка уйдёт сама через HIDE_DELAY_MS.
+                    updateNotification(repository.playbackState.value)
+                    if (!shouldShowNotification()) onConnectionChanged(repository.connectionStatus.value)
+                }
             }
             ACTION_PLAY_PAUSE -> repository.togglePlayPause()
             ACTION_NEXT -> repository.skipNext()
@@ -107,14 +194,20 @@ class PlaybackService : Service() {
         val prevIntent = actionPendingIntent(ACTION_PREV)
 
         val playPauseIcon = if (playback.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+        val connected = repository.connectionStatus.value == ConnectionStatus.CONNECTED
+        val (title, text) = RemotePlayer.displayTexts(playback, connected)
 
         val builder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(title)
+            .setContentText(text)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .addAction(android.R.drawable.ic_media_previous, "Prev", prevIntent)
             .addAction(playPauseIcon, "Play/Pause", playPauseIntent)
             .addAction(android.R.drawable.ic_media_next, "Next", nextIntent)
+
+        largeIcon?.let { builder.setLargeIcon(it) }
 
         mediaSession?.let {
             builder.setStyle(
@@ -140,12 +233,16 @@ class PlaybackService : Service() {
             release()
         }
         mediaSession = null
+        remotePlayer = null
         super.onDestroy()
     }
 
     companion object {
+        const val EXTRA_FOREGROUND = "com.marsel.wledremote.extra.FOREGROUND"
+        private const val TAG = "WledRemoteService"
         private const val NOTIFICATION_CHANNEL_ID = "wled_remote_playback"
         private const val NOTIFICATION_ID = 1
+        private const val HIDE_DELAY_MS = 8_000L
         private const val ACTION_PLAY_PAUSE = "com.marsel.wledremote.action.PLAY_PAUSE"
         private const val ACTION_NEXT = "com.marsel.wledremote.action.NEXT"
         private const val ACTION_PREV = "com.marsel.wledremote.action.PREV"
