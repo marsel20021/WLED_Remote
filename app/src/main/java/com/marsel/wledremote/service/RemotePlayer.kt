@@ -123,7 +123,7 @@ class RemotePlayer(
         fun displayTexts(playback: PlaybackUiState, connected: Boolean): Pair<String, String> {
             if (!connected) return "WLED Remote" to "Подключение к ТВ..."
 
-            val movie = playback.movieTitle?.takeIf { it.isNotBlank() }
+            val movie = PosterTitle.cleanMovieTitle(playback.movieTitle)
             val item = playback.title
             if (movie != null && !sameTitle(movie, item)) {
                 return movie to item
