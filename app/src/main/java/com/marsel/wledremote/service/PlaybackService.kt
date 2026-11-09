@@ -49,6 +49,17 @@ class PlaybackService : Service() {
     private val scope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
     private var isAppInForeground = true
 
+    // Нажатие на плашку открывает приложение (если оно уже запущено - просто выводит его на экран)
+    private val openAppIntent: PendingIntent by lazy {
+        PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
+
     // Постер: для какого названия уже искали, текущая картинка для плашки
     private var posterKey: String? = null
     private var posterJob: Job? = null
@@ -68,12 +79,7 @@ class PlaybackService : Service() {
         val player = RemotePlayer(repository, mainLooper)
         remotePlayer = player
 
-        val sessionActivityIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+        val sessionActivityIntent = openAppIntent
 
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(sessionActivityIntent)
@@ -243,6 +249,7 @@ class PlaybackService : Service() {
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle(title)
             .setContentText(text)
+            .setContentIntent(openAppIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             // В свёрнутой плашке видны первые три: -5 с, play/pause, +15 с. Серии - в развёрнутой.
