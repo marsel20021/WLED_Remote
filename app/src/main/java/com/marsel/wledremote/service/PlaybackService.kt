@@ -13,7 +13,9 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.marsel.wledremote.MainActivity
@@ -22,8 +24,10 @@ import com.marsel.wledremote.data.PosterArt
 import com.marsel.wledremote.data.PosterRepository
 import com.marsel.wledremote.data.PosterTitle
 import com.marsel.wledremote.data.RemoteRepository
+import com.marsel.wledremote.data.SeekTracker
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.model.PlaybackUiState
+import com.google.common.collect.ImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -73,6 +77,7 @@ class PlaybackService : Service() {
 
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(sessionActivityIntent)
+            .setMediaButtonPreferences(mediaButtons())
             .build()
 
         createNotificationChannel()
@@ -85,6 +90,39 @@ class PlaybackService : Service() {
         }
         scope.launch {
             repository.connectionStatus.collect { status -> onConnectionChanged(status) }
+        }
+    }
+
+    /**
+     * Кнопки системных медиа-контролов (Android 13+ строит их из сессии, а не из addAction ниже):
+     * "-5 с" и "+15 с" на местах рядом с play/pause, предыдущая/следующая серия - в дополнительных.
+     */
+    private fun mediaButtons(): ImmutableList<CommandButton> {
+        val back = CommandButton.Builder(CommandButton.ICON_SKIP_BACK_5)
+            .setPlayerCommand(Player.COMMAND_SEEK_BACK)
+            .setDisplayName("Назад 5 с")
+            .setSlots(CommandButton.SLOT_BACK)
+            .build()
+        val forward = CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_15)
+            .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+            .setDisplayName("Вперёд 15 с")
+            .setSlots(CommandButton.SLOT_FORWARD)
+            .build()
+        return try {
+            val previous = CommandButton.Builder(CommandButton.ICON_PREVIOUS)
+                .setPlayerCommand(Player.COMMAND_SEEK_TO_PREVIOUS)
+                .setDisplayName("Предыдущая серия")
+                .setSlots(CommandButton.SLOT_OVERFLOW)
+                .build()
+            val next = CommandButton.Builder(CommandButton.ICON_NEXT)
+                .setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT)
+                .setDisplayName("Следующая серия")
+                .setSlots(CommandButton.SLOT_OVERFLOW)
+                .build()
+            ImmutableList.of(back, forward, previous, next)
+        } catch (e: Exception) {
+            Log.w(TAG, "Кнопки серий не добавились: $e")
+            ImmutableList.of(back, forward)
         }
     }
 
@@ -173,6 +211,8 @@ class PlaybackService : Service() {
             ACTION_PLAY_PAUSE -> repository.togglePlayPause()
             ACTION_NEXT -> repository.skipNext()
             ACTION_PREV -> repository.skipPrevious()
+            ACTION_SEEK_BACK -> remotePlayer?.seekBy(-SeekTracker.BACK_MS)
+            ACTION_SEEK_FORWARD -> remotePlayer?.seekBy(SeekTracker.FORWARD_MS)
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -192,6 +232,8 @@ class PlaybackService : Service() {
         val playPauseIntent = actionPendingIntent(ACTION_PLAY_PAUSE)
         val nextIntent = actionPendingIntent(ACTION_NEXT)
         val prevIntent = actionPendingIntent(ACTION_PREV)
+        val seekBackIntent = actionPendingIntent(ACTION_SEEK_BACK)
+        val seekForwardIntent = actionPendingIntent(ACTION_SEEK_FORWARD)
 
         val playPauseIcon = if (playback.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
         val connected = repository.connectionStatus.value == ConnectionStatus.CONNECTED
@@ -203,8 +245,11 @@ class PlaybackService : Service() {
             .setContentText(text)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .addAction(android.R.drawable.ic_media_previous, "Prev", prevIntent)
+            // В свёрнутой плашке видны первые три: -5 с, play/pause, +15 с. Серии - в развёрнутой.
+            .addAction(android.R.drawable.ic_media_rew, "-5 с", seekBackIntent)
             .addAction(playPauseIcon, "Play/Pause", playPauseIntent)
+            .addAction(android.R.drawable.ic_media_ff, "+15 с", seekForwardIntent)
+            .addAction(android.R.drawable.ic_media_previous, "Prev", prevIntent)
             .addAction(android.R.drawable.ic_media_next, "Next", nextIntent)
 
         largeIcon?.let { builder.setLargeIcon(it) }
@@ -246,5 +291,7 @@ class PlaybackService : Service() {
         private const val ACTION_PLAY_PAUSE = "com.marsel.wledremote.action.PLAY_PAUSE"
         private const val ACTION_NEXT = "com.marsel.wledremote.action.NEXT"
         private const val ACTION_PREV = "com.marsel.wledremote.action.PREV"
+        private const val ACTION_SEEK_BACK = "com.marsel.wledremote.action.SEEK_BACK"
+        private const val ACTION_SEEK_FORWARD = "com.marsel.wledremote.action.SEEK_FORWARD"
     }
 }

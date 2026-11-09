@@ -1,20 +1,41 @@
 package com.marsel.wledremote.viewmodel
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.marsel.wledremote.data.RemoteRepository
+import com.marsel.wledremote.data.SeekTracker
 import com.marsel.wledremote.model.AmbilightSettingsUiState
 import com.marsel.wledremote.model.CaptureMode
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.model.EngineKind
 import com.marsel.wledremote.model.PlaybackUiState
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
-class PlayerViewModel(private val repository: RemoteRepository) : ViewModel() {
+class PlayerViewModel(
+    private val repository: RemoteRepository
+) : ViewModel() {
     val state: StateFlow<PlaybackUiState> = repository.playbackState
     val connectionStatus: StateFlow<ConnectionStatus> = repository.connectionStatus
     val playlist: StateFlow<List<String>> = repository.playlist
     val savedTvIp: String get() = repository.settingsState.value.tvIp
+
+    private val seekTracker = SeekTracker()
+    private var seekClearJob: Job? = null
+
+    private val _seekHint = MutableStateFlow<String?>(null)
+    /** Подсказка "+45 с": сколько перемотано за текущую серию нажатий. null - скрыта. */
+    val seekHint: StateFlow<String?> = _seekHint.asStateFlow()
+
+    private val _seekPreviewMs = MutableStateFlow<Long?>(null)
+    /** Куда перематываем сейчас (пока плеер не прислал новую позицию). Бегунок рисуется по ней. */
+    val seekPreviewMs: StateFlow<Long?> = _seekPreviewMs.asStateFlow()
 
     fun connect(ip: String) = repository.connect(ip)
     fun onPlayPauseClick() = repository.togglePlayPause()
@@ -22,6 +43,35 @@ class PlayerViewModel(private val repository: RemoteRepository) : ViewModel() {
     fun onNextClick() = repository.skipNext()
     fun onPreviousClick() = repository.skipPrevious()
     fun onSelectEpisode(index: Int) = repository.playIndex(index)
+
+    /** multiplier > 1 при удержании кнопки: шаг умножается, перемотка ускоряется. */
+    fun seekForward(multiplier: Int = 1) = seekBy(SeekTracker.FORWARD_MS * multiplier)
+    fun seekBack(multiplier: Int = 1) = seekBy(-SeekTracker.BACK_MS * multiplier)
+
+    private fun seekBy(deltaMs: Long) {
+        val current = state.value
+        val result = seekTracker.seekBy(
+            deltaMs = deltaMs,
+            currentPositionMs = current.positionMs,
+            durationMs = current.durationMs,
+            nowMs = SystemClock.elapsedRealtime()
+        )
+        repository.seekTo(result.targetMs)
+
+        _seekPreviewMs.value = result.targetMs
+        _seekHint.value = SeekTracker.formatSigned(result.accumulatedMs)
+
+        seekClearJob?.cancel()
+        seekClearJob = viewModelScope.launch {
+            delay(SEEK_HINT_MS)
+            _seekHint.value = null
+            _seekPreviewMs.value = null
+        }
+    }
+
+    private companion object {
+        const val SEEK_HINT_MS = 1200L // меньше SeekTracker.CHAIN_MS, чтобы подсказка гасла раньше конца серии
+    }
 }
 
 class SettingsViewModel(private val repository: RemoteRepository) : ViewModel() {
@@ -88,7 +138,9 @@ class SettingsViewModel(private val repository: RemoteRepository) : ViewModel() 
     }
 }
 
-class RemoteViewModelFactory(private val repository: RemoteRepository) : ViewModelProvider.Factory {
+class RemoteViewModelFactory(
+    private val repository: RemoteRepository
+) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {

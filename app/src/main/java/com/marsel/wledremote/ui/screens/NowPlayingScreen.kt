@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -21,24 +23,43 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.marsel.wledremote.data.SeekTracker
+import com.marsel.wledremote.data.PosterTitle
 import com.marsel.wledremote.model.PlaybackUiState
 import com.marsel.wledremote.ui.components.ConnectionStatusCard
 import com.marsel.wledremote.ui.components.PlaylistSheet
 import com.marsel.wledremote.ui.theme.TimecodeStyle
 import com.marsel.wledremote.viewmodel.PlayerViewModel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun NowPlayingScreen(viewModel: PlayerViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
+    val seekHint by viewModel.seekHint.collectAsStateWithLifecycle()
+    val seekPreviewMs by viewModel.seekPreviewMs.collectAsStateWithLifecycle()
     var showPlaylist by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
@@ -67,49 +88,80 @@ fun NowPlayingScreen(viewModel: PlayerViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            val (headline, secondLine) = nowPlayingTexts(state)
             Text(
-                text = state.title,
+                text = headline,
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
             )
-            state.subtitle?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            Spacer(Modifier.height(48.dp))
-
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(180.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0f)
-                                )
-                            )
-                        )
+            secondLine?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-                FilledIconButton(
-                    onClick = viewModel::onPlayPauseClick,
-                    modifier = Modifier.size(88.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Icon(
-                        imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (state.isPlaying) "Пауза" else "Play",
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
             }
 
             Spacer(Modifier.height(40.dp))
+
+            // Назад - Пауза/Play - Вперёд. Кнопки перемотки: нажатие = шаг, удержание = ускоряющаяся перемотка
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SeekButton(
+                    icon = Icons.Filled.FastRewind,
+                    label = "${SeekTracker.BACK_MS / 1000} с",
+                    description = "Назад на ${SeekTracker.BACK_MS / 1000} секунд",
+                    onStep = viewModel::seekBack
+                )
+
+                Box(modifier = Modifier.size(104.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .requiredSize(150.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0f)
+                                    )
+                                )
+                            )
+                    )
+                    FilledIconButton(
+                        onClick = viewModel::onPlayPauseClick,
+                        modifier = Modifier.size(88.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (state.isPlaying) "Пауза" else "Play",
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                }
+
+                SeekButton(
+                    icon = Icons.Filled.FastForward,
+                    label = "${SeekTracker.FORWARD_MS / 1000} с",
+                    description = "Вперёд на ${SeekTracker.FORWARD_MS / 1000} секунд",
+                    onStep = viewModel::seekForward
+                )
+            }
+
+            Spacer(Modifier.height(32.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 IconButton(onClick = viewModel::onPreviousClick) {
@@ -120,9 +172,26 @@ fun NowPlayingScreen(viewModel: PlayerViewModel) {
                 }
             }
 
-            Spacer(Modifier.height(32.dp))
+            // Подсказка "+45 с" во время перемотки; место под неё занято всегда, чтобы экран не прыгал
+            Box(
+                modifier = Modifier.fillMaxWidth().height(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                seekHint?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
 
-            PlaybackProgress(state = state, onSeek = viewModel::onSeek)
+            // Пока идёт перемотка, бегунок и время рисуем по цели, а не по старой позиции от плеера
+            PlaybackProgress(
+                state = seekPreviewMs?.let { state.copy(positionMs = it) } ?: state,
+                onSeek = viewModel::onSeek
+            )
         }
     }
 
@@ -137,6 +206,94 @@ fun NowPlayingScreen(viewModel: PlayerViewModel) {
             onDismiss = { showPlaylist = false }
         )
     }
+}
+
+/**
+ * Круглая кнопка перемотки. Нажатие - один шаг (onStep(1)). Если держать, через HOLD_START_MS перемотка
+ * повторяется каждые HOLD_REPEAT_MS, а шаг растёт: x1, x2, x3 ... до MAX_HOLD_LEVEL.
+ */
+@Composable
+private fun SeekButton(
+    icon: ImageVector,
+    label: String,
+    description: String,
+    onStep: (multiplier: Int) -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val currentOnStep by rememberUpdatedState(onStep)
+    var pressed by remember { mutableStateOf(false) }
+
+    val idleColor = MaterialTheme.colorScheme.surfaceVariant
+    val pressedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(72.dp)
+            .clip(CircleShape)
+            .background(if (pressed) pressedColor else idleColor)
+            .semantics { contentDescription = description }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        pressed = true
+                        try {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            currentOnStep(1)
+                            coroutineScope {
+                                val repeater = launch {
+                                    delay(HOLD_START_MS)
+                                    var tick = 0
+                                    while (true) {
+                                        tick++
+                                        val level = (1 + tick / TICKS_PER_LEVEL).coerceAtMost(MAX_HOLD_LEVEL)
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        currentOnStep(level)
+                                        delay(HOLD_REPEAT_MS)
+                                    }
+                                }
+                                tryAwaitRelease()
+                                repeater.cancel()
+                            }
+                        } finally {
+                            pressed = false
+                        }
+                    }
+                )
+            }
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(26.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private const val HOLD_START_MS = 450L      // сколько держать до начала повтора
+private const val HOLD_REPEAT_MS = 220L     // период повтора при удержании
+private const val TICKS_PER_LEVEL = 5       // каждые ~1.1 с шаг растёт на единицу
+private const val MAX_HOLD_LEVEL = 6        // шаг не больше x6 от базового
+
+/**
+ * (заголовок, вторая строка): название фильма крупно, а серия под ним.
+ * Если названия фильма нет или оно совпадает с именем серии - показываем как раньше.
+ */
+private fun nowPlayingTexts(state: PlaybackUiState): Pair<String, String?> {
+    val movie = state.movieTitle?.takeIf { it.isNotBlank() }
+    if (movie != null && PosterTitle.normalize(movie) != PosterTitle.normalize(state.title)) {
+        return movie to state.title
+    }
+    return state.title to state.subtitle
 }
 
 @Composable
