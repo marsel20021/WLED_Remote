@@ -57,6 +57,12 @@ object PosterTitle {
             "s\\d{1,2}\\s*e\\d{1,3}.*|season\\s*\\d+.*|episode\\s*\\d+.*)$",
         RegexOption.IGNORE_CASE
     )
+    // Только "хвост" про серию: "Дандадан - Серия 1" -> "Дандадан". Сезон не трогаем: "Дандадан 2 сезон" остаётся как есть
+    private val episodeOnlyTailRegex = Regex(
+        "[\\s\\-–—:,.]*(?:\\d+\\s*(?:-?я\\s*)?серия.*|серия\\s*\\d+.*|эпизод\\s*\\d+.*|" +
+            "s\\d{1,2}\\s*e\\d{1,3}.*|episode\\s*\\d+.*)$",
+        RegexOption.IGNORE_CASE
+    )
     private val spacesRegex = Regex("\\s+")
     private val nonWordRegex = Regex("[^\\p{L}\\p{N}\\s]")
 
@@ -68,6 +74,17 @@ object PosterTitle {
         if (s.isEmpty()) return true
         if (s in placeholders) return true
         return placeholderRegex.matches(s) || sxeRegex.matches(s)
+    }
+
+    /**
+     * Название фильма для показа на экране и в плашке без "хвоста" серии.
+     * Плеер Vokino присылает "Дандадан - Серия 1", а серия показывается отдельной строкой.
+     * Если после обрезки ничего осмысленного не осталось - возвращаем как есть.
+     */
+    fun cleanMovieTitle(raw: String?): String? {
+        val s = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val cut = s.replace(episodeOnlyTailRegex, "").trim(' ', '-', '–', '—', ':', ',', '.', '|', '/')
+        return if (cut.length >= 2 && !isPlaceholder(cut)) cut else s
     }
 
     /** null, если искать нечего. */

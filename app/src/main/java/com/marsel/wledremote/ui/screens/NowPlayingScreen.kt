@@ -289,7 +289,7 @@ private const val MAX_HOLD_LEVEL = 6        // шаг не больше x6 от 
  * Если названия фильма нет или оно совпадает с именем серии - показываем как раньше.
  */
 private fun nowPlayingTexts(state: PlaybackUiState): Pair<String, String?> {
-    val movie = state.movieTitle?.takeIf { it.isNotBlank() }
+    val movie = PosterTitle.cleanMovieTitle(state.movieTitle)
     if (movie != null && PosterTitle.normalize(movie) != PosterTitle.normalize(state.title)) {
         return movie to state.title
     }
