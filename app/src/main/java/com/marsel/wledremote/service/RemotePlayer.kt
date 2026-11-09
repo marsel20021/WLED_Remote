@@ -1,6 +1,7 @@
 package com.marsel.wledremote.service
 
 import android.os.Looper
+import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -11,6 +12,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.marsel.wledremote.data.PosterTitle
 import com.marsel.wledremote.data.RemoteRepository
+import com.marsel.wledremote.data.SeekTracker
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.model.PlaybackUiState
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +31,9 @@ class RemotePlayer(
     private var playback = PlaybackUiState()
     private var connection = ConnectionStatus.DISCONNECTED
     private var artwork: ByteArray? = null
+
+    // Считает цель перемотки, когда кнопку нажимают несколько раз подряд (позиция от ТВ приходит раз в секунду)
+    private val seekTracker = SeekTracker()
 
     init {
         scope.launch { repository.playbackState.collect { playback = it; invalidateState() } }
@@ -78,8 +83,22 @@ class RemotePlayer(
         return Futures.immediateVoidFuture()
     }
 
+    /** Перемотка на deltaMs (минус - назад). Вызывается и кнопками плашки, и системными кнопками медиа-контролов. */
+    fun seekBy(deltaMs: Long) {
+        val result = seekTracker.seekBy(
+            deltaMs = deltaMs,
+            currentPositionMs = playback.positionMs,
+            durationMs = playback.durationMs,
+            nowMs = SystemClock.elapsedRealtime()
+        )
+        repository.seekTo(result.targetMs)
+    }
+
     override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
         when (seekCommand) {
+            // Кнопки "-5 с" и "+15 с": шаг берём свой (SeekTracker), а не позицию, которую посчитал плеер
+            Player.COMMAND_SEEK_BACK -> seekBy(-SeekTracker.BACK_MS)
+            Player.COMMAND_SEEK_FORWARD -> seekBy(SeekTracker.FORWARD_MS)
             Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> repository.skipNext()
             Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> repository.skipPrevious()
             else -> repository.seekTo(positionMs)
@@ -94,7 +113,7 @@ class RemotePlayer(
 
     companion object {
         private val AVAILABLE_COMMANDS = Player.Commands.Builder()
-            .addAll(Player.COMMAND_PLAY_PAUSE, Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM, Player.COMMAND_GET_CURRENT_MEDIA_ITEM, Player.COMMAND_GET_METADATA, Player.COMMAND_GET_TIMELINE)
+            .addAll(Player.COMMAND_PLAY_PAUSE, Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM, Player.COMMAND_SEEK_BACK, Player.COMMAND_SEEK_FORWARD, Player.COMMAND_GET_CURRENT_MEDIA_ITEM, Player.COMMAND_GET_METADATA, Player.COMMAND_GET_TIMELINE)
             .build()
 
         /**
