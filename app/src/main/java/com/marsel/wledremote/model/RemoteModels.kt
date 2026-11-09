@@ -54,6 +54,8 @@ object LabOptions {
 
 data class PlaybackUiState(
     val title: String = "Ничего не воспроизводится",
+    /** Название фильма/сериала целиком (title из запроса Vokino); title выше - это имя текущей серии. */
+    val movieTitle: String? = null,
     val subtitle: String? = null,
     val isPlaying: Boolean = false,
     val positionMs: Long = 0L,

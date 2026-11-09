@@ -1,6 +1,7 @@
 package com.marsel.wledremote.data
 
 import android.content.Context
+import android.util.Log
 import com.marsel.wledremote.model.AmbilightSettingsUiState
 import com.marsel.wledremote.model.CaptureMode
 import com.marsel.wledremote.model.ConnectionStatus
@@ -66,6 +67,8 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
 
     private var connectionJob: Job? = null
     private var wsSession: DefaultClientWebSocketSession? = null
+    private var lastLoggedTitle: String? = null
+    private var lastLoggedMovie: String? = null
 
     init {
         val savedIp = localPrefs.savedTvIp
@@ -153,9 +156,18 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
                 }
             }
             "playbackState" -> {
+                val newTitle = json.optString("title", "Без названия")
+                val newMovie = json.optString("movieTitle", "").takeIf { it.isNotBlank() }
+                if (newTitle != lastLoggedTitle || newMovie != lastLoggedMovie) {
+                    lastLoggedTitle = newTitle
+                    lastLoggedMovie = newMovie
+                    // Смотреть в logcat по тегу WledRemote: что именно прислал плеер/Vokino
+                    Log.d("WledRemote", "title='$newTitle' movieTitle='$newMovie' extras=${json.optString("intentInfo")}")
+                }
                 _playbackState.update { state ->
                     state.copy(
-                        title = json.optString("title", "Без названия"),
+                        title = newTitle,
+                        movieTitle = newMovie,
                         isPlaying = json.optBoolean("isPlaying", false),
                         positionMs = json.optLong("positionMs", 0L),
                         durationMs = json.optLong("durationMs", 0L),

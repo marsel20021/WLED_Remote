@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.marsel.wledremote.data.RemoteRepository
+import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.service.PlaybackService
 import com.marsel.wledremote.ui.screens.NowPlayingScreen
 import com.marsel.wledremote.ui.screens.SettingsScreen
@@ -67,10 +68,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        ContextCompat.startForegroundService(
-            this,
-            Intent(this, PlaybackService::class.java).setAction("APP_IN_BACKGROUND")
-        )
+        val repository = (application as WledRemoteApp).repository
+        val connected = repository.connectionStatus.value == ConnectionStatus.CONNECTED
+
+        val intent = Intent(this, PlaybackService::class.java)
+            .setAction("APP_IN_BACKGROUND")
+            .putExtra(PlaybackService.EXTRA_FOREGROUND, connected)
+
+        if (connected) {
+            // Есть связь с ТВ - сервис покажет плашку (и обязан перейти на передний план)
+            ContextCompat.startForegroundService(this, intent)
+        } else {
+            // Связи нет - плашка не нужна, обычный запуск без foreground
+            startService(intent)
+        }
     }
 
     private fun requestNotificationPermissionIfNeeded() {
