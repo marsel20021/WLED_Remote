@@ -17,6 +17,7 @@ import android.util.Log
 import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONException
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -85,12 +86,34 @@ class PosterRepository(context: Context) {
         bytes
     }
 
+    /**
+     * Пробует источники по очереди: Кинопоиск (новый адрес, потом старый), потом Википедия (ru, en). Если один источник ответил ошибкой
+     * (кончилась квота, ключ не подошёл, таймаут, не скачалась картинка), идём к следующему, а не сдаёмся.
+     * Если ничего не нашли и при этом были ошибки сети, бросаем ошибку: тогда "не нашли" не запоминается
+     * и поиск повторится в следующий раз.
+     */
     private fun fetch(query: PosterQuery): ByteArray? {
-        val imageUrl = kinopoisk(query)
-            ?: wikipedia(query, "ru", listOf(" фильм", " сериал", ""))
-            ?: wikipedia(query, "en", listOf(" film", " TV series"))
-            ?: return null
-        return recode(httpGet(imageUrl))
+        val sources: List<Pair<String, () -> String?>> = listOf(
+            "Кинопоиск v2.2" to { kinopoiskNew(query) },
+            "Кинопоиск v2.1" to { kinopoisk(query) },
+            "Википедия ru" to { wikipedia(query, "ru", listOf(" фильм", " сериал", "")) },
+            "Википедия en" to { wikipedia(query, "en", listOf(" film", " TV series")) }
+        )
+        var lastError: IOException? = null
+        for ((name, findUrl) in sources) {
+            try {
+                val imageUrl = findUrl() ?: continue
+                val bytes = recode(httpGet(imageUrl))
+                if (bytes != null) return bytes
+            } catch (e: IOException) {
+                Log.w(TAG, "$name не сработал: ${e.message}")
+                lastError = e
+            } catch (e: JSONException) {
+                Log.w(TAG, "$name вернул непонятный ответ: ${e.message}")
+            }
+        }
+        lastError?.let { throw it }
+        return null
     }
 
     // ---------- Кинопоиск (только если указан токен) ----------
@@ -106,6 +129,26 @@ class PosterRepository(context: Context) {
             KpFilm(
                 nameRu = o.optString("nameRu").takeIf { it.isNotBlank() && it != "null" },
                 nameEn = o.optString("nameEn").takeIf { it.isNotBlank() && it != "null" },
+                year = o.optString("year").toIntOrNull(),
+                posterUrl = o.optString("posterUrl").takeIf { it.isNotBlank() && it != "null" }
+            )
+        }
+        return PosterTitle.pickKinopoisk(films, query)?.posterUrl
+    }
+
+    /** Новый адрес поиска Кинопоиска (v2.2): надёжнее старого, который иногда отвечает ошибкой 500 на отдельные названия. */
+    private fun kinopoiskNew(query: PosterQuery): String? {
+        if (PosterConfig.KINOPOISK_TOKEN.isBlank()) return null
+        val url = "https://kinopoiskapiunofficial.tech/api/v2.2/films" +
+            "?keyword=${Uri.encode(query.title)}&page=1"
+        val json = JSONObject(String(httpGet(url, mapOf("X-API-KEY" to PosterConfig.KINOPOISK_TOKEN))))
+        val arr = json.optJSONArray("items") ?: return null
+        val films = (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            KpFilm(
+                nameRu = o.optString("nameRu").takeIf { it.isNotBlank() && it != "null" },
+                nameEn = o.optString("nameEn").takeIf { it.isNotBlank() && it != "null" }
+                    ?: o.optString("nameOriginal").takeIf { it.isNotBlank() && it != "null" },
                 year = o.optString("year").toIntOrNull(),
                 posterUrl = o.optString("posterUrl").takeIf { it.isNotBlank() && it != "null" }
             )
