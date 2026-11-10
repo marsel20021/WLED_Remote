@@ -9,13 +9,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -25,11 +29,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.marsel.wledremote.data.PosterRepository
 import com.marsel.wledremote.data.RemoteRepository
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.service.PlaybackService
+import com.marsel.wledremote.ui.components.PosterBackground
 import com.marsel.wledremote.ui.screens.NowPlayingScreen
 import com.marsel.wledremote.ui.screens.SettingsScreen
 import com.marsel.wledremote.ui.theme.WLEDRemoteTheme
@@ -56,7 +64,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             WLEDRemoteTheme {
-                MainApp(repository = repository)
+                MainApp(repository = repository, posters = (application as WledRemoteApp).posters)
             }
         }
     }
@@ -95,38 +103,53 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainApp(repository: RemoteRepository) {
+fun MainApp(repository: RemoteRepository, posters: PosterRepository) {
     val factory = remember { RemoteViewModelFactory(repository) }
     var selectedTab by remember { mutableStateOf(RemoteTab.NOW_PLAYING) }
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = selectedTab == RemoteTab.NOW_PLAYING,
-                    onClick = { selectedTab = RemoteTab.NOW_PLAYING },
-                    icon = { Icon(Icons.Filled.PlayCircle, contentDescription = null) },
-                    label = { Text(RemoteTab.NOW_PLAYING.label) }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == RemoteTab.SETTINGS,
-                    onClick = { selectedTab = RemoteTab.SETTINGS },
-                    icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                    label = { Text(RemoteTab.SETTINGS.label) }
-                )
-            }
+    // ViewModel привязана к Activity, поэтому здесь и на экране пульта - один и тот же объект
+    val playerViewModel: PlayerViewModel = viewModel(factory = factory)
+    val playback by playerViewModel.state.collectAsStateWithLifecycle()
+    val showPoster = selectedTab == RemoteTab.NOW_PLAYING
+
+    // Постер лежит под прозрачным Scaffold, поэтому виден за экраном пульта и (слегка) за нижней панелью
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        if (showPoster) {
+            PosterBackground(posters = posters, playback = playback)
         }
-    ) { innerPadding ->
-        // Вернул твой оригинальный Box без растягивания
-        Box(modifier = Modifier.padding(innerPadding)) {
-            when (selectedTab) {
-                RemoteTab.NOW_PLAYING -> {
-                    val playerViewModel: PlayerViewModel = viewModel(factory = factory)
-                    NowPlayingScreen(playerViewModel)
+
+        Scaffold(
+            containerColor = Color.Transparent,
+            bottomBar = {
+                NavigationBar(
+                    containerColor = NavigationBarDefaults.containerColor.copy(alpha = if (showPoster) 0.8f else 1f)
+                ) {
+                    NavigationBarItem(
+                        selected = selectedTab == RemoteTab.NOW_PLAYING,
+                        onClick = { selectedTab = RemoteTab.NOW_PLAYING },
+                        icon = { Icon(Icons.Filled.PlayCircle, contentDescription = null) },
+                        label = { Text(RemoteTab.NOW_PLAYING.label) }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == RemoteTab.SETTINGS,
+                        onClick = { selectedTab = RemoteTab.SETTINGS },
+                        icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                        label = { Text(RemoteTab.SETTINGS.label) }
+                    )
                 }
-                RemoteTab.SETTINGS -> {
-                    val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
-                    SettingsScreen(settingsViewModel)
+            }
+        ) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding)) {
+                when (selectedTab) {
+                    RemoteTab.NOW_PLAYING -> NowPlayingScreen(playerViewModel)
+                    RemoteTab.SETTINGS -> {
+                        val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
+                        SettingsScreen(settingsViewModel)
+                    }
                 }
             }
         }
