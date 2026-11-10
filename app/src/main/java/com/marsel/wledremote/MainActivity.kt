@@ -124,6 +124,8 @@ fun MainApp(repository: RemoteRepository, posters: PosterRepository) {
 
         Scaffold(
             containerColor = Color.Transparent,
+            // Прозрачный Scaffold сам цвет текста не задаёт (был бы чёрный), поэтому указываем явно
+            contentColor = MaterialTheme.colorScheme.onBackground,
             bottomBar = {
                 NavigationBar(
                     containerColor = NavigationBarDefaults.containerColor.copy(alpha = if (showPoster) 0.8f else 1f)
