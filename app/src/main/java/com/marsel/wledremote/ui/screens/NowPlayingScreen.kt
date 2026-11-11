@@ -18,8 +18,8 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,8 +44,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.marsel.wledremote.data.SeekTracker
 import com.marsel.wledremote.data.PosterTitle
+import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.model.PlaybackUiState
+import com.marsel.wledremote.ui.components.ConnectionPill
 import com.marsel.wledremote.ui.components.ConnectionStatusCard
+import com.marsel.wledremote.ui.components.GlassPill
 import com.marsel.wledremote.ui.components.PlaylistSheet
 import com.marsel.wledremote.ui.theme.TimecodeStyle
 import com.marsel.wledremote.viewmodel.PlayerViewModel
@@ -62,23 +65,41 @@ fun NowPlayingScreen(viewModel: PlayerViewModel) {
     val seekPreviewMs by viewModel.seekPreviewMs.collectAsStateWithLifecycle()
     var showPlaylist by remember { mutableStateOf(false) }
 
+    var showConnection by remember { mutableStateOf(false) }
+    val connected = connectionStatus == ConnectionStatus.CONNECTED
+    // Как только соединение (пере)установилось - возвращаем компактную плашку
+    LaunchedEffect(connectionStatus) {
+        if (connectionStatus == ConnectionStatus.CONNECTED) showConnection = false
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
 
-        ConnectionStatusCard(
-            status = connectionStatus,
-            initialIp = viewModel.savedTvIp,
-            onConnect = viewModel::connect
-        )
-
-        if (playlist.size > 1) {
+        if (connected && !showConnection) {
+            // ТВ на связи: вместо большой карточки - компактные плашки в один ряд
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                horizontalArrangement = Arrangement.End
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = { showPlaylist = true }) {
-                    Icon(Icons.Filled.List, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Плейлист (${playlist.size})")
+                ConnectionPill(status = connectionStatus, onClick = { showConnection = true })
+                if (playlist.size > 1) {
+                    PlaylistPill(count = playlist.size, onClick = { showPlaylist = true })
+                }
+            }
+        } else {
+            // Нет связи или нажали на плашку: полная карточка, где вводится IP телевизора
+            ConnectionStatusCard(
+                status = connectionStatus,
+                initialIp = viewModel.savedTvIp,
+                onConnect = viewModel::connect,
+                startExpanded = !connected
+            )
+            if (playlist.size > 1) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    PlaylistPill(count = playlist.size, onClick = { showPlaylist = true })
                 }
             }
         }
@@ -204,6 +225,25 @@ fun NowPlayingScreen(viewModel: PlayerViewModel) {
                 showPlaylist = false
             },
             onDismiss = { showPlaylist = false }
+        )
+    }
+}
+
+@Composable
+private fun PlaylistPill(count: Int, onClick: () -> Unit) {
+    GlassPill(onClick = onClick) {
+        Icon(
+            Icons.Filled.List,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = "Плейлист · $count",
+            color = MaterialTheme.colorScheme.onBackground,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }

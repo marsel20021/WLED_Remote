@@ -39,7 +39,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.marsel.wledremote.model.ConnectionStatus
 
 @Composable
@@ -47,13 +49,17 @@ fun ConnectionStatusCard(
     status: ConnectionStatus,
     initialIp: String,
     onConnect: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    startExpanded: Boolean = status != ConnectionStatus.CONNECTED
 ) {
     var ipText by remember { mutableStateOf(initialIp) }
-    var expanded by remember { mutableStateOf(status != ConnectionStatus.CONNECTED) }
+    var expanded by remember { mutableStateOf(startExpanded) }
+    var previousStatus by remember { mutableStateOf(status) }
 
+    // Сворачиваем карточку в момент, когда соединение только что установилось
     LaunchedEffect(status) {
-        if (status == ConnectionStatus.CONNECTED) expanded = false
+        if (status == ConnectionStatus.CONNECTED && previousStatus != ConnectionStatus.CONNECTED) expanded = false
+        previousStatus = status
     }
 
     Surface(
@@ -144,4 +150,27 @@ private fun StatusDot(status: ConnectionStatus) {
             .clip(CircleShape)
             .background(baseColor.copy(alpha = alpha))
     )
+}
+
+/** Компактная плашка статуса: точка и короткая подпись. Нажатие открывает полную карточку с IP-адресом. */
+@Composable
+fun ConnectionPill(
+    status: ConnectionStatus,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    GlassPill(modifier = modifier, onClick = onClick) {
+        StatusDot(status)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = when (status) {
+                ConnectionStatus.CONNECTED -> "ТВ подключён"
+                ConnectionStatus.CONNECTING -> "Подключение..."
+                ConnectionStatus.DISCONNECTED -> "Нет соединения"
+            },
+            color = MaterialTheme.colorScheme.onBackground,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
 }
