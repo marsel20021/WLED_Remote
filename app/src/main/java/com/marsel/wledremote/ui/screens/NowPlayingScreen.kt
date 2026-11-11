@@ -70,6 +70,9 @@ import com.marsel.wledremote.viewmodel.PlayerViewModel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
@@ -138,24 +141,57 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                     Spacer(Modifier.height(24.dp))
                 }
 
+                // Пока идёт перемотка, время и бегунок считаем по цели, а не по старой позиции от плеера
+                val shownState = seekPreviewMs?.let { state.copy(positionMs = it) } ?: state
+
                 Text(
                     text = headline,
-                    style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 27.sp,
+                    lineHeight = 32.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.Center,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
                 secondLine?.let {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(5.dp))
                     Text(
                         text = it,
-                        style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.primary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+
+                // Строка под названием: во время перемотки подсказка («+45 с»), в остальное время
+                // сколько осталось. Место под неё занято всегда, чтобы экран не прыгал.
+                val hint = seekHint
+                Spacer(Modifier.height(3.dp))
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (hint != null) {
+                        Text(
+                            text = hint,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        remainingText(shownState)?.let {
+                            Text(
+                                text = it,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(40.dp))
@@ -221,24 +257,8 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                     }
                 }
 
-                // Подсказка "+45 с" во время перемотки; место под неё занято всегда, чтобы экран не прыгал
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    seekHint?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                // Пока идёт перемотка, бегунок и время рисуем по цели, а не по старой позиции от плеера
                 PlaybackProgress(
-                    state = seekPreviewMs?.let { state.copy(positionMs = it) } ?: state,
+                    state = shownState,
                     onSeek = viewModel::onSeek
                 )
             }
@@ -401,6 +421,26 @@ private fun nowPlayingTexts(state: PlaybackUiState): Pair<String, String?> {
         return movie to state.title
     }
     return state.title to state.subtitle
+}
+
+/**
+ * «Осталось 15 мин · закончится в 23:41». Время окончания показываем, только пока идёт воспроизведение
+ * (на паузе оно бы «уплывало»). Если длительность ещё неизвестна - строки нет.
+ */
+private fun remainingText(state: PlaybackUiState): String? {
+    if (state.durationMs <= 0L) return null
+    val leftMs = (state.durationMs - state.positionMs).coerceAtLeast(0L)
+    val minutes = ((leftMs + 59_999L) / 60_000L).toInt()
+
+    val left = when {
+        minutes < 1 -> "Осталось меньше минуты"
+        minutes < 60 -> "Осталось $minutes мин"
+        else -> "Осталось ${minutes / 60} ч ${minutes % 60} мин"
+    }
+    if (!state.isPlaying) return left
+
+    val endsAt = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(System.currentTimeMillis() + leftMs))
+    return "$left · закончится в $endsAt"
 }
 
 @Composable
