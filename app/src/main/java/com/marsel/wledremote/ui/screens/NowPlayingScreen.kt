@@ -36,9 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -278,13 +275,6 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                         )
                     }
                 }
-
-                // Полоска с цветами постера (только когда постер есть)
-                if (look != null && look.strip.isNotEmpty()) {
-                    Spacer(Modifier.height(18.dp))
-                    PaletteStrip(look.strip)
-                    Spacer(Modifier.height(8.dp))
-                }
             }
         }
     }
@@ -335,49 +325,6 @@ private fun PosterCard(look: PosterLook?, title: String, height: Dp) {
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
-            )
-        }
-    }
-}
-
-/**
- * Полоска «Палитра фильма»: ряд цветных палочек, как диоды ленты. Цвета берутся из постера слева направо.
- * Это не картинка с телевизора, а палитра самого фильма. Настоящие цвета ленты в реальном времени
- * можно будет показывать здесь же, когда плеер на ТВ начнёт присылать их на телефон.
- */
-@Composable
-private fun PaletteStrip(colors: List<Color>) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "ПАЛИТРА ФИЛЬМА",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.66f)
-        )
-        Spacer(Modifier.height(7.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(10.dp)) {
-            // Размытая копия под полоской даёт свечение (работает на Android 12 и новее)
-            PaletteRow(
-                colors = colors,
-                modifier = Modifier
-                    .matchParentSize()
-                    .blur(10.dp, BlurredEdgeTreatment.Unbounded)
-                    .alpha(0.65f)
-            )
-            PaletteRow(colors = colors, modifier = Modifier.matchParentSize())
-        }
-    }
-}
-
-@Composable
-private fun PaletteRow(colors: List<Color>, modifier: Modifier = Modifier) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        colors.forEach { color ->
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(color)
             )
         }
     }

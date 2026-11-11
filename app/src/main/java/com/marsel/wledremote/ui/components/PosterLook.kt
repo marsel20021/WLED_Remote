@@ -18,19 +18,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Всё, что приложение берёт из постера: сама картинка, главный цвет (акцент интерфейса)
- * и ряд цветов для полоски. Считается один раз и раздаётся всем экранам.
+ * Всё, что приложение берёт из постера: сама картинка и главный цвет (акцент интерфейса).
+ * Считается один раз и раздаётся всем экранам.
  */
 @Immutable
 class PosterLook(
     val image: ImageBitmap,
-    val accent: Color,
-    val strip: List<Color>
+    val accent: Color
 )
 
 private const val SAMPLE_WIDTH = 32   // постер уменьшаем до 32x48 точек - для подсчёта цветов хватает
 private const val SAMPLE_HEIGHT = 48
-private const val STRIP_COUNT = 24    // сколько «диодов» рисуем в полоске
 
 /**
  * Ищет постер для того, что сейчас играет, и разбирает его на цвета.
@@ -59,7 +57,6 @@ private suspend fun decodeLook(bytes: ByteArray): PosterLook? = withContext(Disp
 
     PosterLook(
         image = bitmap.asImageBitmap(),
-        accent = Color(PosterPalette.dominantAccent(pixels)),
-        strip = PosterPalette.stripColors(pixels, SAMPLE_WIDTH, SAMPLE_HEIGHT, STRIP_COUNT).map { Color(it) }
+        accent = Color(PosterPalette.dominantAccent(pixels))
     )
 }

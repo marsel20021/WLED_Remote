@@ -13,8 +13,7 @@ import kotlin.math.sin
  * Цвета из постера. Работает с уменьшенной картинкой, заданной массивом пикселей ARGB.
  * Никакого Android внутри, поэтому логику легко проверять отдельно от телефона.
  *
- * 1) dominantAccent - главный цвет постера, подогнанный под тёмный интерфейс (для акцента).
- * 2) stripColors - ряд цветов слева направо (для полоски «Палитра фильма»).
+ * dominantAccent - главный цвет постера, подогнанный под тёмный интерфейс (для акцента).
  */
 object PosterPalette {
 
@@ -74,44 +73,6 @@ object PosterPalette {
         // Для тёмного интерфейса: цвет сочный (насыщенность 0.55-0.9) и светлый (яркость 0.96)
         val saturation = (satSum[best] / bestWeight).coerceIn(0.55f, 0.90f)
         return readable(hsvToRgb(hue, saturation, 0.96f))
-    }
-
-    /**
-     * Делит картинку на [count] вертикальных полос и для каждой считает средний цвет,
-     * потом делает его чуть ярче и сочнее, чтобы на тёмном фоне выглядело как светодиод.
-     */
-    fun stripColors(pixels: IntArray, width: Int, height: Int, count: Int): IntArray {
-        if (width <= 0 || height <= 0 || count <= 0 || pixels.size < width * height) return IntArray(0)
-
-        val result = IntArray(count)
-        val hsv = FloatArray(3)
-        for (i in 0 until count) {
-            val x0 = i * width / count
-            val x1 = min(width, max(x0 + 1, (i + 1) * width / count))
-
-            var r = 0L
-            var g = 0L
-            var b = 0L
-            var n = 0
-            for (y in 0 until height) {
-                for (x in x0 until x1) {
-                    val p = pixels[y * width + x]
-                    r += (p shr 16) and 0xFF
-                    g += (p shr 8) and 0xFF
-                    b += p and 0xFF
-                    n++
-                }
-            }
-            val average = if (n == 0) {
-                0xFF000000.toInt()
-            } else {
-                (0xFF shl 24) or ((r / n).toInt() shl 16) or ((g / n).toInt() shl 8) or (b / n).toInt()
-            }
-
-            rgbToHsv(average, hsv)
-            result[i] = hsvToRgb(hsv[0], min(1f, hsv[1] * 1.2f), max(hsv[2], 0.4f))
-        }
-        return result
     }
 
     // ---------- цвет: переводы и проверки ----------
