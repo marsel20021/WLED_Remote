@@ -9,6 +9,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +44,7 @@ import com.marsel.wledremote.ui.components.rememberPosterLook
 import com.marsel.wledremote.ui.screens.NowPlayingScreen
 import com.marsel.wledremote.ui.screens.SettingsScreen
 import com.marsel.wledremote.ui.theme.WLEDRemoteTheme
+import com.marsel.wledremote.ui.theme.onAccent
 import com.marsel.wledremote.viewmodel.PlayerViewModel
 import com.marsel.wledremote.viewmodel.RemoteViewModelFactory
 import com.marsel.wledremote.viewmodel.SettingsViewModel
@@ -115,45 +118,61 @@ fun MainApp(repository: RemoteRepository, posters: PosterRepository) {
     val look = rememberPosterLook(posters, playback)
     val showPoster = selectedTab == RemoteTab.NOW_PLAYING
 
-    // Постер лежит под прозрачным Scaffold, поэтому виден за экраном пульта
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        if (showPoster) {
-            PosterBackground(look = look)
-        }
+    // На вкладке «Пульт» главный цвет интерфейса берём из постера, смена цвета плавная.
+    // Все кнопки, бегунки и подписи, которые используют primary, перекрасятся сами.
+    val baseScheme = MaterialTheme.colorScheme
+    val accent by animateColorAsState(
+        targetValue = look?.accent ?: baseScheme.primary,
+        animationSpec = tween(700),
+        label = "accent"
+    )
+    val scheme = if (showPoster) {
+        baseScheme.copy(primary = accent, onPrimary = onAccent(accent))
+    } else {
+        baseScheme
+    }
 
-        Scaffold(
-            containerColor = Color.Transparent,
-            // Прозрачный Scaffold сам цвет текста не задаёт (был бы чёрный), поэтому указываем явно
-            contentColor = MaterialTheme.colorScheme.onBackground,
-            bottomBar = {
-                NavigationBar(
-                    containerColor = NavigationBarDefaults.containerColor.copy(alpha = if (showPoster) 0.8f else 1f)
-                ) {
-                    NavigationBarItem(
-                        selected = selectedTab == RemoteTab.NOW_PLAYING,
-                        onClick = { selectedTab = RemoteTab.NOW_PLAYING },
-                        icon = { Icon(Icons.Filled.PlayCircle, contentDescription = null) },
-                        label = { Text(RemoteTab.NOW_PLAYING.label) }
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == RemoteTab.SETTINGS,
-                        onClick = { selectedTab = RemoteTab.SETTINGS },
-                        icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                        label = { Text(RemoteTab.SETTINGS.label) }
-                    )
-                }
+    MaterialTheme(colorScheme = scheme) {
+        // Постер лежит под прозрачным Scaffold, поэтому виден за экраном пульта
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            if (showPoster) {
+                PosterBackground(look = look)
             }
-        ) { innerPadding ->
-            Box(modifier = Modifier.padding(innerPadding)) {
-                when (selectedTab) {
-                    RemoteTab.NOW_PLAYING -> NowPlayingScreen(playerViewModel)
-                    RemoteTab.SETTINGS -> {
-                        val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
-                        SettingsScreen(settingsViewModel)
+
+            Scaffold(
+                containerColor = Color.Transparent,
+                // Прозрачный Scaffold сам цвет текста не задаёт (был бы чёрный), поэтому указываем явно
+                contentColor = MaterialTheme.colorScheme.onBackground,
+                bottomBar = {
+                    NavigationBar(
+                        containerColor = NavigationBarDefaults.containerColor.copy(alpha = if (showPoster) 0.8f else 1f)
+                    ) {
+                        NavigationBarItem(
+                            selected = selectedTab == RemoteTab.NOW_PLAYING,
+                            onClick = { selectedTab = RemoteTab.NOW_PLAYING },
+                            icon = { Icon(Icons.Filled.PlayCircle, contentDescription = null) },
+                            label = { Text(RemoteTab.NOW_PLAYING.label) }
+                        )
+                        NavigationBarItem(
+                            selected = selectedTab == RemoteTab.SETTINGS,
+                            onClick = { selectedTab = RemoteTab.SETTINGS },
+                            icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                            label = { Text(RemoteTab.SETTINGS.label) }
+                        )
+                    }
+                }
+            ) { innerPadding ->
+                Box(modifier = Modifier.padding(innerPadding)) {
+                    when (selectedTab) {
+                        RemoteTab.NOW_PLAYING -> NowPlayingScreen(playerViewModel)
+                        RemoteTab.SETTINGS -> {
+                            val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
+                            SettingsScreen(settingsViewModel)
+                        }
                     }
                 }
             }
