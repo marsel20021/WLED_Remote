@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -24,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,7 +46,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -194,7 +196,14 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                     }
                 }
 
-                Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(20.dp))
+
+                PlaybackProgress(
+                    state = shownState,
+                    onSeek = viewModel::onSeek
+                )
+
+                Spacer(Modifier.height(24.dp))
 
                 // Назад - Пауза/Play - Вперёд. Кнопки перемотки: нажатие = шаг, удержание = ускоряющаяся перемотка
                 Row(
@@ -256,11 +265,6 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                         Icon(Icons.Filled.SkipNext, contentDescription = "Следующая серия", modifier = Modifier.size(32.dp))
                     }
                 }
-
-                PlaybackProgress(
-                    state = shownState,
-                    onSeek = viewModel::onSeek
-                )
             }
         }
     }
@@ -446,15 +450,89 @@ private fun remainingText(state: PlaybackUiState): String? {
 @Composable
 private fun PlaybackProgress(state: PlaybackUiState, onSeek: (Long) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Slider(
-            value = if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f,
-            onValueChange = { fraction -> onSeek((fraction * state.durationMs).toLong()) },
-            valueRange = 0f..1f
+        ThinSlider(
+            fraction = if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f,
+            onChange = { fraction ->
+                if (state.durationMs > 0) onSeek((fraction * state.durationMs).toLong())
+            }
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(formatTime(state.positionMs), style = TimecodeStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(formatTime(state.durationMs), style = TimecodeStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+/**
+ * Тонкий бегунок: дорожка в 4 dp, заполненная часть цветом акцента и светящийся кружок.
+ * Нажатие ставит позицию туда, куда ткнули, а пока ведёшь пальцем, кружок идёт за пальцем,
+ * а не прыгает по ответам от телевизора. Команды перемотки уходят так же, как раньше.
+ */
+@Composable
+private fun ThinSlider(fraction: Float, onChange: (Float) -> Unit) {
+    val accent = MaterialTheme.colorScheme.primary
+    val currentOnChange by rememberUpdatedState(onChange)
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val shown = (dragFraction ?: fraction).coerceIn(0f, 1f)
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(32.dp)
+            .semantics {
+                contentDescription = "Позиция воспроизведения"
+                progressBarRangeInfo = ProgressBarRangeInfo(shown, 0f..1f)
+            }
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    currentOnChange((offset.x / size.width).coerceIn(0f, 1f))
+                }
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { offset ->
+                        val value = (offset.x / size.width).coerceIn(0f, 1f)
+                        dragFraction = value
+                        currentOnChange(value)
+                    },
+                    onDragEnd = { dragFraction = null },
+                    onDragCancel = { dragFraction = null },
+                    onHorizontalDrag = { change, _ ->
+                        change.consume()
+                        val value = (change.position.x / size.width).coerceIn(0f, 1f)
+                        dragFraction = value
+                        currentOnChange(value)
+                    }
+                )
+            },
+        contentAlignment = Alignment.CenterStart
+    ) {
+        val trackWidth = maxWidth
+
+        // Дорожка
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.22f))
+        )
+        // Пройденная часть
+        Box(
+            modifier = Modifier
+                .width(trackWidth * shown)
+                .height(4.dp)
+                .clip(CircleShape)
+                .background(accent)
+        )
+        // Кружок со свечением
+        Box(
+            modifier = Modifier
+                .offset(x = trackWidth * shown - 8.dp)
+                .size(16.dp)
+                .shadow(elevation = 8.dp, shape = CircleShape, ambientColor = accent, spotColor = accent)
+                .background(Color.White, CircleShape)
+        )
     }
 }
 
