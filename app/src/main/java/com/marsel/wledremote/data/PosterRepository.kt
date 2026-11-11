@@ -249,9 +249,9 @@ class PosterRepository(context: Context) {
 /** Красивая картинка-заглушка (градиент и название), если постер не нашёлся. */
 object PosterArt {
 
-    fun generate(title: String): ByteArray {
-        val size = 600
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    /** По умолчанию картинка квадратная (для уведомления); для карточки на экране можно задать вертикальную. */
+    fun generate(title: String, width: Int = 600, height: Int = 600): ByteArray {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
         // Цвет зависит от названия, чтобы у разных фильмов фон был разный
@@ -259,9 +259,9 @@ object PosterArt {
         val top = Color.HSVToColor(floatArrayOf(hue, 0.55f, 0.46f))
         val bottom = Color.HSVToColor(floatArrayOf((hue + 40f) % 360f, 0.70f, 0.13f))
         val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(0f, 0f, size.toFloat() * 0.6f, size.toFloat(), top, bottom, Shader.TileMode.CLAMP)
+            shader = LinearGradient(0f, 0f, width * 0.6f, height.toFloat(), top, bottom, Shader.TileMode.CLAMP)
         }
-        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), bg)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bg)
 
         val text = title.trim().ifEmpty { "WLED Remote" }
         val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -271,13 +271,13 @@ object PosterArt {
             setShadowLayer(8f, 0f, 3f, Color.argb(120, 0, 0, 0))
         }
         val padding = 56
-        val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, size - padding * 2)
+        val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, width - padding * 2)
             .setAlignment(Layout.Alignment.ALIGN_CENTER)
             .setMaxLines(5)
             .setEllipsize(TextUtils.TruncateAt.END)
             .build()
         canvas.save()
-        canvas.translate(padding.toFloat(), (size - layout.height) / 2f)
+        canvas.translate(padding.toFloat(), (height - layout.height) / 2f)
         layout.draw(canvas)
         canvas.restore()
 

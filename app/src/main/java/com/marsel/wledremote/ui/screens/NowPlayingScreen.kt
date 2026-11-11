@@ -1,8 +1,16 @@
 package com.marsel.wledremote.ui.screens
 
+import android.graphics.BitmapFactory
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
@@ -29,10 +37,14 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -40,8 +52,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.marsel.wledremote.data.PosterArt
 import com.marsel.wledremote.data.SeekTracker
 import com.marsel.wledremote.data.PosterTitle
 import com.marsel.wledremote.model.ConnectionStatus
@@ -50,6 +64,7 @@ import com.marsel.wledremote.ui.components.ConnectionPill
 import com.marsel.wledremote.ui.components.ConnectionStatusCard
 import com.marsel.wledremote.ui.components.GlassPill
 import com.marsel.wledremote.ui.components.PlaylistSheet
+import com.marsel.wledremote.ui.components.PosterLook
 import com.marsel.wledremote.ui.theme.TimecodeStyle
 import com.marsel.wledremote.viewmodel.PlayerViewModel
 import kotlinx.coroutines.coroutineScope
@@ -57,7 +72,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun NowPlayingScreen(viewModel: PlayerViewModel) {
+fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
@@ -72,147 +87,161 @@ fun NowPlayingScreen(viewModel: PlayerViewModel) {
         if (connectionStatus == ConnectionStatus.CONNECTED) showConnection = false
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+    // Высота постера зависит от высоты экрана: на низких телефонах он меньше, чтобы всё поместилось
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val posterHeight = (maxHeight * 0.34f).coerceIn(150.dp, 300.dp)
 
-        if (connected && !showConnection) {
-            // ТВ на связи: вместо большой карточки - компактные плашки в один ряд
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ConnectionPill(status = connectionStatus, onClick = { showConnection = true })
-                if (playlist.size > 1) {
-                    PlaylistPill(count = playlist.size, onClick = { showPlaylist = true })
-                }
-            }
-        } else {
-            // Нет связи или нажали на плашку: полная карточка, где вводится IP телевизора
-            ConnectionStatusCard(
-                status = connectionStatus,
-                initialIp = viewModel.savedTvIp,
-                onConnect = viewModel::connect,
-                startExpanded = !connected
-            )
-            if (playlist.size > 1) {
+        Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+
+            if (connected && !showConnection) {
+                // ТВ на связи: вместо большой карточки - компактные плашки в один ряд
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.End
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    PlaylistPill(count = playlist.size, onClick = { showPlaylist = true })
+                    ConnectionPill(status = connectionStatus, onClick = { showConnection = true })
+                    if (playlist.size > 1) {
+                        PlaylistPill(count = playlist.size, onClick = { showPlaylist = true })
+                    }
+                }
+            } else {
+                // Нет связи или нажали на плашку: полная карточка, где вводится IP телевизора
+                ConnectionStatusCard(
+                    status = connectionStatus,
+                    initialIp = viewModel.savedTvIp,
+                    onConnect = viewModel::connect,
+                    startExpanded = !connected
+                )
+                if (playlist.size > 1) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        PlaylistPill(count = playlist.size, onClick = { showPlaylist = true })
+                    }
                 }
             }
-        }
 
-        Column(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            val (headline, secondLine) = nowPlayingTexts(state)
-            Text(
-                text = headline,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
-            )
-            secondLine?.let {
-                Spacer(Modifier.height(6.dp))
+            Column(
+                modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                val (headline, secondLine) = nowPlayingTexts(state)
+
+                // Карточку показываем, только если реально что-то играет (а не «Ничего не воспроизводится»)
+                val rawTitle = state.movieTitle?.takeIf { it.isNotBlank() } ?: state.title
+                val hasTitle = remember(rawTitle) { PosterTitle.parse(rawTitle) != null }
+                if (hasTitle) {
+                    Spacer(Modifier.height(24.dp))
+                    PosterCard(look = look, title = headline, height = posterHeight)
+                    Spacer(Modifier.height(24.dp))
+                }
+
                 Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    text = headline,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
                     textAlign = TextAlign.Center,
-                    maxLines = 2,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
-            }
+                secondLine?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
-            Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(40.dp))
 
-            // Назад - Пауза/Play - Вперёд. Кнопки перемотки: нажатие = шаг, удержание = ускоряющаяся перемотка
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                SeekButton(
-                    icon = Icons.Filled.FastRewind,
-                    label = "${SeekTracker.BACK_MS / 1000} с",
-                    description = "Назад на ${SeekTracker.BACK_MS / 1000} секунд",
-                    onStep = viewModel::seekBack
-                )
+                // Назад - Пауза/Play - Вперёд. Кнопки перемотки: нажатие = шаг, удержание = ускоряющаяся перемотка
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    SeekButton(
+                        icon = Icons.Filled.FastRewind,
+                        label = "${SeekTracker.BACK_MS / 1000} с",
+                        description = "Назад на ${SeekTracker.BACK_MS / 1000} секунд",
+                        onStep = viewModel::seekBack
+                    )
 
-                Box(modifier = Modifier.size(104.dp), contentAlignment = Alignment.Center) {
-                    Box(
-                        modifier = Modifier
-                            .requiredSize(150.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0f)
+                    Box(modifier = Modifier.size(104.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .requiredSize(150.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0f)
+                                        )
                                     )
                                 )
-                            )
-                    )
-                    FilledIconButton(
-                        onClick = viewModel::onPlayPauseClick,
-                        modifier = Modifier.size(88.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
                         )
-                    ) {
-                        Icon(
-                            imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (state.isPlaying) "Пауза" else "Play",
-                            modifier = Modifier.size(40.dp)
+                        FilledIconButton(
+                            onClick = viewModel::onPlayPauseClick,
+                            modifier = Modifier.size(88.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                contentDescription = if (state.isPlaying) "Пауза" else "Play",
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
+                    }
+
+                    SeekButton(
+                        icon = Icons.Filled.FastForward,
+                        label = "${SeekTracker.FORWARD_MS / 1000} с",
+                        description = "Вперёд на ${SeekTracker.FORWARD_MS / 1000} секунд",
+                        onStep = viewModel::seekForward
+                    )
+                }
+
+                Spacer(Modifier.height(32.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    IconButton(onClick = viewModel::onPreviousClick) {
+                        Icon(Icons.Filled.SkipPrevious, contentDescription = "Предыдущая серия", modifier = Modifier.size(32.dp))
+                    }
+                    IconButton(onClick = viewModel::onNextClick) {
+                        Icon(Icons.Filled.SkipNext, contentDescription = "Следующая серия", modifier = Modifier.size(32.dp))
+                    }
+                }
+
+                // Подсказка "+45 с" во время перемотки; место под неё занято всегда, чтобы экран не прыгал
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    seekHint?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
 
-                SeekButton(
-                    icon = Icons.Filled.FastForward,
-                    label = "${SeekTracker.FORWARD_MS / 1000} с",
-                    description = "Вперёд на ${SeekTracker.FORWARD_MS / 1000} секунд",
-                    onStep = viewModel::seekForward
+                // Пока идёт перемотка, бегунок и время рисуем по цели, а не по старой позиции от плеера
+                PlaybackProgress(
+                    state = seekPreviewMs?.let { state.copy(positionMs = it) } ?: state,
+                    onSeek = viewModel::onSeek
                 )
             }
-
-            Spacer(Modifier.height(32.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                IconButton(onClick = viewModel::onPreviousClick) {
-                    Icon(Icons.Filled.SkipPrevious, contentDescription = "Предыдущая серия", modifier = Modifier.size(32.dp))
-                }
-                IconButton(onClick = viewModel::onNextClick) {
-                    Icon(Icons.Filled.SkipNext, contentDescription = "Следующая серия", modifier = Modifier.size(32.dp))
-                }
-            }
-
-            // Подсказка "+45 с" во время перемотки; место под неё занято всегда, чтобы экран не прыгал
-            Box(
-                modifier = Modifier.fillMaxWidth().height(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                seekHint?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            // Пока идёт перемотка, бегунок и время рисуем по цели, а не по старой позиции от плеера
-            PlaybackProgress(
-                state = seekPreviewMs?.let { state.copy(positionMs = it) } ?: state,
-                onSeek = viewModel::onSeek
-            )
         }
     }
 
@@ -226,6 +255,44 @@ fun NowPlayingScreen(viewModel: PlayerViewModel) {
             },
             onDismiss = { showPlaylist = false }
         )
+    }
+}
+
+/**
+ * Постер крупной карточкой: скруглённые углы, тонкая светлая рамка и свечение цвета акцента.
+ * Пока настоящий постер ищется (или не нашёлся) вместо него рисуется заглушка с названием,
+ * когда постер приходит - плавно сменяется на него.
+ */
+@Composable
+private fun PosterCard(look: PosterLook?, title: String, height: Dp) {
+    val shape = RoundedCornerShape(22.dp)
+    val accent = MaterialTheme.colorScheme.primary
+
+    val placeholder = remember(title) {
+        val bytes = PosterArt.generate(title, width = 400, height = 600)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size).asImageBitmap()
+    }
+
+    Box(
+        modifier = Modifier
+            .height(height)
+            .aspectRatio(2f / 3f)
+            .shadow(elevation = 28.dp, shape = shape, ambientColor = accent, spotColor = accent)
+            .clip(shape)
+            .border(1.dp, Color.White.copy(alpha = 0.16f), shape)
+    ) {
+        Crossfade(
+            targetState = look?.image ?: placeholder,
+            animationSpec = tween(500),
+            label = "poster_card"
+        ) { image ->
+            Image(
+                bitmap = image,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
 }
 

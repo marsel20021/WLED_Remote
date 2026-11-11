@@ -165,7 +165,7 @@ fun MainApp(repository: RemoteRepository, posters: PosterRepository) {
             ) { innerPadding ->
                 Box(modifier = Modifier.padding(innerPadding)) {
                     when (selectedTab) {
-                        RemoteTab.NOW_PLAYING -> NowPlayingScreen(playerViewModel)
+                        RemoteTab.NOW_PLAYING -> NowPlayingScreen(playerViewModel, look)
                         RemoteTab.SETTINGS -> {
                             val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
                             SettingsScreen(settingsViewModel)
