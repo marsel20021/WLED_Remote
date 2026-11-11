@@ -18,13 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarDefaults
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +34,8 @@ import com.marsel.wledremote.data.PosterRepository
 import com.marsel.wledremote.data.RemoteRepository
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.service.PlaybackService
+import com.marsel.wledremote.ui.components.GlassNavBar
+import com.marsel.wledremote.ui.components.GlassNavTab
 import com.marsel.wledremote.ui.components.PosterBackground
 import com.marsel.wledremote.ui.components.rememberPosterLook
 import com.marsel.wledremote.ui.screens.NowPlayingScreen
@@ -148,22 +145,22 @@ fun MainApp(repository: RemoteRepository, posters: PosterRepository) {
                 // Прозрачный Scaffold сам цвет текста не задаёт (был бы чёрный), поэтому указываем явно
                 contentColor = MaterialTheme.colorScheme.onBackground,
                 bottomBar = {
-                    NavigationBar(
-                        containerColor = NavigationBarDefaults.containerColor.copy(alpha = if (showPoster) 0.8f else 1f)
-                    ) {
-                        NavigationBarItem(
-                            selected = selectedTab == RemoteTab.NOW_PLAYING,
-                            onClick = { selectedTab = RemoteTab.NOW_PLAYING },
-                            icon = { Icon(Icons.Filled.PlayCircle, contentDescription = null) },
-                            label = { Text(RemoteTab.NOW_PLAYING.label) }
+                    GlassNavBar(
+                        tabs = listOf(
+                            GlassNavTab(
+                                label = RemoteTab.NOW_PLAYING.label,
+                                icon = Icons.Filled.PlayCircle,
+                                selected = selectedTab == RemoteTab.NOW_PLAYING,
+                                onClick = { selectedTab = RemoteTab.NOW_PLAYING }
+                            ),
+                            GlassNavTab(
+                                label = RemoteTab.SETTINGS.label,
+                                icon = Icons.Filled.Settings,
+                                selected = selectedTab == RemoteTab.SETTINGS,
+                                onClick = { selectedTab = RemoteTab.SETTINGS }
+                            )
                         )
-                        NavigationBarItem(
-                            selected = selectedTab == RemoteTab.SETTINGS,
-                            onClick = { selectedTab = RemoteTab.SETTINGS },
-                            icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                            label = { Text(RemoteTab.SETTINGS.label) }
-                        )
-                    }
+                    )
                 }
             ) { innerPadding ->
                 Box(modifier = Modifier.padding(innerPadding)) {
