@@ -205,11 +205,22 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
 
                 Spacer(Modifier.height(24.dp))
 
-                // Назад - Пауза/Play - Вперёд. Кнопки перемотки: нажатие = шаг, удержание = ускоряющаяся перемотка
+                // Предыдущая серия - назад - Пауза/Play - вперёд - следующая серия.
+                // Кнопки перемотки: нажатие = шаг, удержание = ускоряющаяся перемотка
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    IconButton(onClick = viewModel::onPreviousClick, modifier = Modifier.size(44.dp)) {
+                        Icon(
+                            Icons.Filled.SkipPrevious,
+                            contentDescription = "Предыдущая серия",
+                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
                     SeekButton(
                         icon = Icons.Filled.FastRewind,
                         label = "${SeekTracker.BACK_MS / 1000} с",
@@ -217,10 +228,11 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                         onStep = viewModel::seekBack
                     )
 
-                    Box(modifier = Modifier.size(104.dp), contentAlignment = Alignment.Center) {
+                    // Большая кнопка Play/Pause с мягким свечением цвета акцента
+                    Box(modifier = Modifier.size(80.dp), contentAlignment = Alignment.Center) {
                         Box(
                             modifier = Modifier
-                                .requiredSize(150.dp)
+                                .requiredSize(140.dp)
                                 .clip(CircleShape)
                                 .background(
                                     Brush.radialGradient(
@@ -233,7 +245,7 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                         )
                         FilledIconButton(
                             onClick = viewModel::onPlayPauseClick,
-                            modifier = Modifier.size(88.dp),
+                            modifier = Modifier.size(80.dp),
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -242,7 +254,7 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                             Icon(
                                 imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                                 contentDescription = if (state.isPlaying) "Пауза" else "Play",
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(36.dp)
                             )
                         }
                     }
@@ -253,16 +265,14 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                         description = "Вперёд на ${SeekTracker.FORWARD_MS / 1000} секунд",
                         onStep = viewModel::seekForward
                     )
-                }
 
-                Spacer(Modifier.height(32.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    IconButton(onClick = viewModel::onPreviousClick) {
-                        Icon(Icons.Filled.SkipPrevious, contentDescription = "Предыдущая серия", modifier = Modifier.size(32.dp))
-                    }
-                    IconButton(onClick = viewModel::onNextClick) {
-                        Icon(Icons.Filled.SkipNext, contentDescription = "Следующая серия", modifier = Modifier.size(32.dp))
+                    IconButton(onClick = viewModel::onNextClick, modifier = Modifier.size(44.dp)) {
+                        Icon(
+                            Icons.Filled.SkipNext,
+                            contentDescription = "Следующая серия",
+                            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f),
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
             }
@@ -354,15 +364,16 @@ private fun SeekButton(
     val currentOnStep by rememberUpdatedState(onStep)
     var pressed by remember { mutableStateOf(false) }
 
-    val idleColor = MaterialTheme.colorScheme.surfaceVariant
+    val idleColor = Color.White.copy(alpha = 0.10f)
     val pressedColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
 
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(72.dp)
+            .size(58.dp)
             .clip(CircleShape)
             .background(if (pressed) pressedColor else idleColor)
+            .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
             .semantics { contentDescription = description }
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -397,14 +408,14 @@ private fun SeekButton(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(26.dp)
+                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
+                modifier = Modifier.size(22.dp)
             )
             Text(
                 text = label,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f)
             )
         }
     }
