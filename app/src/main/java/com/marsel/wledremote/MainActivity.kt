@@ -38,6 +38,7 @@ import com.marsel.wledremote.data.RemoteRepository
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.service.PlaybackService
 import com.marsel.wledremote.ui.components.PosterBackground
+import com.marsel.wledremote.ui.components.rememberPosterLook
 import com.marsel.wledremote.ui.screens.NowPlayingScreen
 import com.marsel.wledremote.ui.screens.SettingsScreen
 import com.marsel.wledremote.ui.theme.WLEDRemoteTheme
@@ -110,6 +111,8 @@ fun MainApp(repository: RemoteRepository, posters: PosterRepository) {
     // ViewModel привязана к Activity, поэтому здесь и на экране пульта - один и тот же объект
     val playerViewModel: PlayerViewModel = viewModel(factory = factory)
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
+    // Постер ищем и разбираем на цвета один раз здесь, дальше его используют все экраны
+    val look = rememberPosterLook(posters, playback)
     val showPoster = selectedTab == RemoteTab.NOW_PLAYING
 
     // Постер лежит под прозрачным Scaffold, поэтому виден за экраном пульта
@@ -119,7 +122,7 @@ fun MainApp(repository: RemoteRepository, posters: PosterRepository) {
             .background(MaterialTheme.colorScheme.background)
     ) {
         if (showPoster) {
-            PosterBackground(posters = posters, playback = playback)
+            PosterBackground(look = look)
         }
 
         Scaffold(
