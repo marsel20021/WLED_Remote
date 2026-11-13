@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -113,9 +114,9 @@ fun MainApp(repository: RemoteRepository, posters: PosterRepository) {
     val playback by playerViewModel.state.collectAsStateWithLifecycle()
     // Постер ищем и разбираем на цвета один раз здесь, дальше его используют все экраны
     val look = rememberPosterLook(posters, playback)
-    val showPoster = selectedTab == RemoteTab.NOW_PLAYING
+    val onSettings = selectedTab == RemoteTab.SETTINGS
 
-    // На вкладке «Пульт» главный цвет интерфейса берём из постера, смена цвета плавная.
+    // Главный цвет интерфейса берём из постера на обеих вкладках, смена цвета плавная.
     // Все кнопки, бегунки и подписи, которые используют primary, перекрасятся сами.
     val baseScheme = MaterialTheme.colorScheme
     val accent by animateColorAsState(
@@ -123,22 +124,23 @@ fun MainApp(repository: RemoteRepository, posters: PosterRepository) {
         animationSpec = tween(700),
         label = "accent"
     )
-    val scheme = if (showPoster) {
-        baseScheme.copy(primary = accent, onPrimary = onAccent(accent))
-    } else {
-        baseScheme
-    }
+    val scheme = baseScheme.copy(primary = accent, onPrimary = onAccent(accent))
+
+    // В настройках много мелкого текста, поэтому постер там приглушаем сильнее
+    val extraTint by animateFloatAsState(
+        targetValue = if (onSettings) 0.22f else 0f,
+        animationSpec = tween(400),
+        label = "settings_tint"
+    )
 
     MaterialTheme(colorScheme = scheme) {
-        // Постер лежит под прозрачным Scaffold, поэтому виден за экраном пульта
+        // Постер лежит под прозрачным Scaffold, поэтому виден за обоими экранами
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            if (showPoster) {
-                PosterBackground(look = look)
-            }
+            PosterBackground(look = look, extraTint = extraTint)
 
             Scaffold(
                 containerColor = Color.Transparent,

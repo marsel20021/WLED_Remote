@@ -23,11 +23,15 @@ import androidx.compose.ui.unit.dp
  *
  * Размытие работает на Android 12 и новее. На старых телефонах постер остаётся чётким,
  * поэтому там тонировку делаем темнее.
+ *
+ * [extraTint] - насколько ещё затемнить фон (0..1). На экране настроек много мелкого текста,
+ * поэтому там постер приглушён сильнее, чем на «Пульте».
  */
 @Composable
 fun PosterBackground(
     look: PosterLook?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    extraTint: Float = 0f
 ) {
     val canBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val extraDark = if (canBlur) 0f else 0.12f
@@ -58,9 +62,9 @@ fun PosterBackground(
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    tint.copy(alpha = 0.30f + extraDark),
-                                    tint.copy(alpha = 0.52f + extraDark),
-                                    tint.copy(alpha = 0.88f)
+                                    tint.copy(alpha = (0.30f + extraDark + extraTint).coerceAtMost(0.95f)),
+                                    tint.copy(alpha = (0.52f + extraDark + extraTint).coerceAtMost(0.95f)),
+                                    tint.copy(alpha = (0.88f + extraTint).coerceAtMost(0.95f))
                                 )
                             )
                         )
