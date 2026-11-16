@@ -62,11 +62,14 @@ import com.marsel.wledremote.data.SeekTracker
 import com.marsel.wledremote.data.PosterTitle
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.model.PlaybackUiState
+import com.marsel.wledremote.skip.SkipController
 import com.marsel.wledremote.ui.components.ConnectionPill
 import com.marsel.wledremote.ui.components.ConnectionStatusCard
 import com.marsel.wledremote.ui.components.GlassPill
 import com.marsel.wledremote.ui.components.PlaylistSheet
 import com.marsel.wledremote.ui.components.PosterLook
+import com.marsel.wledremote.ui.components.SeasonPicker
+import com.marsel.wledremote.ui.components.SkipButton
 import com.marsel.wledremote.ui.theme.TimecodeStyle
 import com.marsel.wledremote.viewmodel.PlayerViewModel
 import kotlinx.coroutines.coroutineScope
@@ -77,8 +80,9 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
+fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?, skip: SkipController) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val skipUi by skip.ui.collectAsStateWithLifecycle()
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
     val seekHint by viewModel.seekHint.collectAsStateWithLifecycle()
@@ -196,6 +200,12 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                     }
                 }
 
+                // Плашка выбора сезона: только если у сериала несколько сезонов
+                skipUi.seasonChoice?.let { choice ->
+                    Spacer(Modifier.height(12.dp))
+                    SeasonPicker(choice = choice, onPick = skip::pickSeason)
+                }
+
                 Spacer(Modifier.height(20.dp))
 
                 PlaybackProgress(
@@ -203,7 +213,24 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?) {
                     onSeek = viewModel::onSeek
                 )
 
-                Spacer(Modifier.height(24.dp))
+                // Место под кнопку пропуска занято заранее, чтобы кнопки управления не прыгали из-под пальца.
+                // Для фильмов и при выключенной галочке места нет.
+                if (skipUi.active) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(64.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        SkipButton(
+                            offer = skipUi.offer,
+                            undo = skipUi.undo,
+                            onSkip = skip::skipNow,
+                            onCancel = skip::cancel,
+                            onUndo = skip::undo
+                        )
+                    }
+                } else {
+                    Spacer(Modifier.height(24.dp))
+                }
 
                 // Предыдущая серия - назад - Пауза/Play - вперёд - следующая серия.
                 // Кнопки перемотки: нажатие = шаг, удержание = ускоряющаяся перемотка

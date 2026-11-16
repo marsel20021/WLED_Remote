@@ -179,7 +179,7 @@ fun MainApp(
             ) { innerPadding ->
                 Box(modifier = Modifier.padding(innerPadding)) {
                     when (selectedTab) {
-                        RemoteTab.NOW_PLAYING -> NowPlayingScreen(playerViewModel, look)
+                        RemoteTab.NOW_PLAYING -> NowPlayingScreen(playerViewModel, look, skip)
                         RemoteTab.SETTINGS -> {
                             val settingsViewModel: SettingsViewModel = viewModel(factory = factory)
                             SettingsScreen(settingsViewModel)
