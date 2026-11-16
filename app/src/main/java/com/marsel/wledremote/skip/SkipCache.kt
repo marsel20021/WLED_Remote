@@ -77,7 +77,8 @@ class SkipCache(
             list.add(
                 SkipSegment(
                     SkipKind.valueOf(s.getString("k")), s.getLong("a"),
-                    if (s.isNull("b")) null else s.getLong("b"), s.getInt("v"), s.optString("src", "")
+                    if (s.isNull("b")) null else s.getLong("b"), s.getInt("v"), s.optString("src", ""),
+                    if (s.isNull("r")) null else s.getLong("r")
                 )
             )
         }
@@ -90,7 +91,7 @@ class SkipCache(
                 t.segments.forEach { s ->
                     arr.put(
                         JSONObject().put("k", s.kind.name).put("a", s.startMs).put("b", s.endMs ?: JSONObject.NULL)
-                            .put("v", s.votes).put("src", s.source)
+                            .put("v", s.votes).put("src", s.source).put("r", s.refDurationMs ?: JSONObject.NULL)
                     )
                 }
             })

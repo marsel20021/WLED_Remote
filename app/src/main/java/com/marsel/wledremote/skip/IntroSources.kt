@@ -25,6 +25,14 @@ object IntroParser {
         }
     }
 
+    /** Время в миллисекундах: берём точное поле, а если его нет - секунды (с дробной частью). */
+    private fun JSONObject.timeMs(msKey: String, secKey: String): Long? {
+        longOrNull(msKey)?.let { return it }
+        if (isNull(secKey) || !has(secKey)) return null
+        val d = optDouble(secKey, Double.NaN)
+        return if (d.isNaN()) null else (d * 1000).roundToLong()
+    }
+
     private fun root(json: String): JSONObject? = try {
         val o = JSONObject(json)
         // на случай, если данные лежат внутри "data"
@@ -36,6 +44,7 @@ object IntroParser {
     /** TheIntroDB: время в миллисекундах; start=null - с начала, end=null - до конца серии. */
     fun parseTheIntroDb(json: String): SourceData? {
         val o = root(json) ?: return null
+        val ref = o.longOrNull("group_duration_ms")?.takeIf { it > 0 }
         val out = ArrayList<SkipSegment>()
         fun add(key: String, kind: SkipKind) {
             for (it in items(o, key)) {
@@ -45,12 +54,12 @@ object IntroParser {
                 when (kind) {
                     SkipKind.INTRO, SkipKind.RECAP -> {
                         if (end == null) continue
-                        out.add(SkipSegment(kind, start ?: 0L, end, votes, "TheIntroDB"))
+                        out.add(SkipSegment(kind, start ?: 0L, end, votes, "TheIntroDB", ref))
                     }
                     SkipKind.CREDITS -> {
                         // начало титров неизвестно - прыгать не от чего
                         if (start == null) continue
-                        out.add(SkipSegment(kind, start, end, votes, "TheIntroDB"))
+                        out.add(SkipSegment(kind, start, end, votes, "TheIntroDB", ref))
                     }
                 }
             }
@@ -68,8 +77,8 @@ object IntroParser {
         fun add(key: String, kind: SkipKind) {
             for (it in items(o, key)) {
                 val votes = it.optInt("submission_count", 0)
-                val start = it.longOrNull("start_sec")?.let { s -> s * 1000 }
-                val end = it.longOrNull("end_sec")?.let { s -> s * 1000 }
+                val start = it.timeMs("start_ms", "start_sec")
+                val end = it.timeMs("end_ms", "end_sec")
                 when (kind) {
                     SkipKind.INTRO, SkipKind.RECAP -> {
                         if (end == null) continue
@@ -85,7 +94,7 @@ object IntroParser {
         add("intro", SkipKind.INTRO)
         add("recap", SkipKind.RECAP)
         add("outro", SkipKind.CREDITS)
-        val post = items(o, "post_credits").mapNotNull { it.longOrNull("start_sec") }.minOrNull()?.times(1000)
+        val post = items(o, "post_credits").mapNotNull { it.timeMs("start_ms", "start_sec") }.minOrNull()
         return SourceData(sortByVotes(out), post)
     }
 
