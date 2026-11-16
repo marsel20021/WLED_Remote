@@ -15,7 +15,9 @@ data class SkipUndo(val kind: SkipKind)
 data class SkipUiState(
     val offer: SkipOffer? = null,
     val seasonChoice: SeasonChoice? = null,
-    val undo: SkipUndo? = null
+    val undo: SkipUndo? = null,
+    /** true, если это сериал с номером серии и автопропуск включён: экран резервирует место под кнопку. */
+    val active: Boolean = false
 )
 
 /** Команды ТВ. */
@@ -111,7 +113,7 @@ class SkipEngine(
         val info = series
         if (seriesState != Load.READY || info == null) {
             lastSnap = null
-            return SkipUiState(undo = currentUndo())
+            return SkipUiState(undo = currentUndo(), active = true)
         }
 
         // Какой сезон: из названия, единственный, или выбранный человеком
@@ -121,12 +123,12 @@ class SkipEngine(
         val choice = if (fixedSeason == null && seasons.size >= 2) SeasonChoice(seasons, season) else null
         if (season == null) {
             lastSnap = null
-            return SkipUiState(seasonChoice = choice)
+            return SkipUiState(seasonChoice = choice, active = true)
         }
         val resolved = SeasonMath.resolve(season, ctx.ref.episode, info.seasonCounts)
         if (resolved == null) {
             lastSnap = null
-            return SkipUiState(seasonChoice = choice)
+            return SkipUiState(seasonChoice = choice, active = true)
         }
 
         val key = "$fp|${pb.currentIndex}|${pb.title}|S${resolved.season}E${resolved.episode}"
@@ -157,7 +159,7 @@ class SkipEngine(
             tlApplied = true
         }
         step.fire?.let { execute(it, pb.durationMs) }
-        return SkipUiState(offer = step.offer, seasonChoice = choice, undo = currentUndo())
+        return SkipUiState(offer = step.offer, seasonChoice = choice, undo = currentUndo(), active = true)
     }
 
     /** Человек нажал кнопку "Пропустить". */
