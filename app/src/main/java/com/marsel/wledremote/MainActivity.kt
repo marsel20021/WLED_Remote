@@ -35,6 +35,7 @@ import com.marsel.wledremote.data.PosterRepository
 import com.marsel.wledremote.data.RemoteRepository
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.service.PlaybackService
+import com.marsel.wledremote.skip.SkipSettings
 import com.marsel.wledremote.ui.components.GlassNavBar
 import com.marsel.wledremote.ui.components.GlassNavTab
 import com.marsel.wledremote.ui.components.PosterBackground
@@ -66,7 +67,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             WLEDRemoteTheme {
-                MainApp(repository = repository, posters = (application as WledRemoteApp).posters)
+                MainApp(
+                    repository = repository,
+                    posters = (application as WledRemoteApp).posters,
+                    skipSettings = (application as WledRemoteApp).skipSettings
+                )
             }
         }
     }
@@ -105,8 +110,8 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainApp(repository: RemoteRepository, posters: PosterRepository) {
-    val factory = remember { RemoteViewModelFactory(repository) }
+fun MainApp(repository: RemoteRepository, posters: PosterRepository, skipSettings: SkipSettings) {
+    val factory = remember { RemoteViewModelFactory(repository, skipSettings) }
     var selectedTab by remember { mutableStateOf(RemoteTab.NOW_PLAYING) }
 
     // ViewModel привязана к Activity, поэтому здесь и на экране пульта - один и тот же объект

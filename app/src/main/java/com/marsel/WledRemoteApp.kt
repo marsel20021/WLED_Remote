@@ -4,6 +4,7 @@ import android.app.Application
 import com.marsel.wledremote.data.NetworkRemoteRepository
 import com.marsel.wledremote.data.PosterRepository
 import com.marsel.wledremote.data.RemoteRepository
+import com.marsel.wledremote.skip.SkipSettings
 
 /**
  * Единая точка хранения RemoteRepository - и MainActivity, и фоновый PlaybackService
@@ -15,4 +16,7 @@ class WledRemoteApp : Application() {
 
     /** Поиск постеров для экранов приложения. Кэш лежит на диске и общий с плашкой в уведомлениях. */
     val posters: PosterRepository by lazy { PosterRepository(this) }
+
+    /** Галочка автопропуска заставок и титров. */
+    val skipSettings: SkipSettings by lazy { SkipSettings(this) }
 }

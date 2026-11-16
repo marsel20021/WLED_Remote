@@ -39,6 +39,7 @@ import com.marsel.wledremote.viewmodel.SettingsViewModel
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val skipEnabled by viewModel.skipEnabled.collectAsStateWithLifecycle()
 
     var wledIp by remember(state.wledIp) { mutableStateOf(state.wledIp) }
     var udpPort by remember(state.udpPort) { mutableStateOf(state.udpPort) }
@@ -154,6 +155,15 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             LabeledSlider("Диодов слева", ledsLeft, 0f..100f, onValueChange = { ledsLeft = it })
             LabeledSlider("Диодов справа", ledsRight, 0f..100f, onValueChange = { ledsRight = it })
             LabeledSlider("Смещение", ledOffset, 0f..100f, onValueChange = { ledOffset = it })
+        }
+
+        SettingsCard("Серии") {
+            LabeledSwitch("Автопропуск заставки и титров", skipEnabled, viewModel::updateSkipEnabled)
+            Text(
+                "Для сериалов и аниме. Применяется сразу. Выключено - никаких запросов и кнопки пропуска",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         Button(

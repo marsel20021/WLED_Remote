@@ -11,6 +11,7 @@ import com.marsel.wledremote.model.CaptureMode
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.model.EngineKind
 import com.marsel.wledremote.model.PlaybackUiState
+import com.marsel.wledremote.skip.SkipSettings
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,8 +75,15 @@ class PlayerViewModel(
     }
 }
 
-class SettingsViewModel(private val repository: RemoteRepository) : ViewModel() {
+class SettingsViewModel(
+    private val repository: RemoteRepository,
+    private val skipSettings: SkipSettings
+) : ViewModel() {
     val state: StateFlow<AmbilightSettingsUiState> = repository.settingsState
+
+    /** Автопропуск заставок и титров (хранится только на телефоне). */
+    val skipEnabled: StateFlow<Boolean> = skipSettings.enabled
+    fun updateSkipEnabled(value: Boolean) = skipSettings.setEnabled(value)
 
     fun updateBrightness(value: Int) = repository.updateSettings { it.copy(brightness = value) }
     fun updateGamma(value: Int) = repository.updateSettings { it.copy(gamma = value) }
@@ -139,13 +147,14 @@ class SettingsViewModel(private val repository: RemoteRepository) : ViewModel() 
 }
 
 class RemoteViewModelFactory(
-    private val repository: RemoteRepository
+    private val repository: RemoteRepository,
+    private val skipSettings: SkipSettings
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
             modelClass.isAssignableFrom(PlayerViewModel::class.java) -> PlayerViewModel(repository) as T
-            modelClass.isAssignableFrom(SettingsViewModel::class.java) -> SettingsViewModel(repository) as T
+            modelClass.isAssignableFrom(SettingsViewModel::class.java) -> SettingsViewModel(repository, skipSettings) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class")
         }
     }
