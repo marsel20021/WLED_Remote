@@ -100,7 +100,7 @@ class SkipCacheTest {
     }
 
     @Test
-    fun `выбранный сезон помнится полдня`() {
+    fun `выбранный сезон помнится недолго`() {
         assertNull(cache.getPick("fp"))
         cache.putPick("fp", 2)
         assertEquals(2, cache.getPick("fp"))

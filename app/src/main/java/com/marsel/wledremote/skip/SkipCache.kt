@@ -40,7 +40,7 @@ class SkipCache(
         const val SERIES_TTL_MS = 7 * DAY_MS
         const val TIMELINE_TTL_MS = 30 * DAY_MS
         const val NO_DATA_TTL_MS = 2 * DAY_MS
-        const val PICK_TTL_MS = 12L * 60 * 60 * 1000
+        const val PICK_TTL_MS = 3L * 60 * 60 * 1000
         const val MAX_ENTRIES = 300
     }
 
