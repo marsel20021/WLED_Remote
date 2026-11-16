@@ -14,6 +14,14 @@ class SkipSettings(context: Context) {
     private val _uncertain = MutableStateFlow(prefs.skipUncertain)
     val uncertain: StateFlow<Boolean> = _uncertain
 
+    private val _recap = MutableStateFlow(prefs.skipRecap)
+    val recap: StateFlow<Boolean> = _recap
+
+    fun setRecap(value: Boolean) {
+        prefs.skipRecap = value
+        _recap.value = value
+    }
+
     fun setEnabled(value: Boolean) {
         prefs.skipEnabled = value
         _enabled.value = value

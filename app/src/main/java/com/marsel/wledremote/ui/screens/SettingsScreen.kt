@@ -41,6 +41,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val skipEnabled by viewModel.skipEnabled.collectAsStateWithLifecycle()
     val skipUncertain by viewModel.skipUncertain.collectAsStateWithLifecycle()
+    val skipRecap by viewModel.skipRecap.collectAsStateWithLifecycle()
 
     var wledIp by remember(state.wledIp) { mutableStateOf(state.wledIp) }
     var udpPort by remember(state.udpPort) { mutableStateOf(state.udpPort) }
@@ -162,6 +163,12 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             LabeledSwitch("Автопропуск заставки и титров", skipEnabled, viewModel::updateSkipEnabled)
             Text(
                 "Для сериалов и аниме. Применяется сразу. Выключено - никаких запросов и кнопки пропуска",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            LabeledSwitch("Пропускать пересказ", skipRecap, viewModel::updateSkipRecap)
+            Text(
+                "\"В предыдущих сериях\" в начале серии",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

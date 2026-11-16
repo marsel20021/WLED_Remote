@@ -1,14 +1,12 @@
 package com.marsel.wledremote.skip
 
-import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 
 /** Числа и проверки, которые защищают от кривых данных. */
 object SkipRules {
-    const val COUNTDOWN_REF_MS = 3_000L     // отсчёт, если у отрезка есть эталон длины серии
-    const val COUNTDOWN_NO_REF_MS = 5_000L  // отсчёт без эталона: тайм-коды могли сместиться
+    const val COUNTDOWN_MS = 3_000L         // сколько секунд идёт отсчёт перед пропуском
     const val SETTLE_MS = 2_500L            // после смены серии позицию не трогаем: первое состояние может быть от прошлой серии
     const val QUIET_MS = 2_500L             // после нашего прыжка не показываем ничего: плеер ещё присылает старую позицию
     const val MIN_REMAINING_MS = 3_000L     // если до конца отрезка меньше, прыгать уже незачем
@@ -17,8 +15,6 @@ object SkipRules {
     const val END_MARGIN_MS = 1_000L
     const val RESTART_BELOW_MS = 5_000L     // серию запустили с начала
     const val RESTART_AFTER_MS = 60_000L    // ...хотя до этого мы были уже далеко
-    const val SYNC_TOLERANCE_MS = 2_000L    // разница длины файла и эталона до этого - считаем совпадением
-    const val MAX_SHIFT_MS = 30_000L        // больше этого - другая версия серии, не пропускаем
 
     fun isUsable(seg: SkipSegment, durationMs: Long): Boolean {
         if (seg.startMs < 0) return false
@@ -44,39 +40,11 @@ object SkipRules {
             }
         }
     }
-
-    /**
-     * Подгоняет отрезок под длину файла. Если у отрезка есть эталон, считаем разницу:
-     * совпало - как есть, файл длиннее на вставку (обычно студия озвучки в начале) - двигаем на разницу,
-     * иначе отрезок не подходит. null - использовать нельзя.
-     */
-    fun fit(seg: SkipSegment, durationMs: Long): SkipSegment? {
-        val ref = seg.refDurationMs
-        val moved = if (ref == null || ref <= 0) {
-            seg
-        } else {
-            if (durationMs <= 0) return null
-            val delta = durationMs - ref
-            if (abs(delta) <= SYNC_TOLERANCE_MS) {
-                seg
-            } else if (delta in (SYNC_TOLERANCE_MS + 1)..MAX_SHIFT_MS) {
-                seg.copy(startMs = seg.startMs + delta, endMs = seg.endMs?.plus(delta))
-            } else {
-                return null
-            }
-        }
-        return if (isUsable(moved, durationMs)) moved else null
-    }
-
-    fun countdownFor(seg: SkipSegment): Long {
-        val ref = seg.refDurationMs
-        return if (ref != null && ref > 0) COUNTDOWN_REF_MS else COUNTDOWN_NO_REF_MS
-    }
 }
 
 /**
  * Снимок того, что сейчас играет. nowMs - монотонное время телефона.
- * allowUncertain: пропускать ли отрезки, у которых только одна отметка.
+ * allowUncertain: пропускать ли отрезки, у которых только одна отметка. allowRecap: пропускать ли пересказ.
  */
 data class SkipSnapshot(
     val episodeKey: String,
@@ -86,7 +54,8 @@ data class SkipSnapshot(
     val connected: Boolean,
     val hasNextEpisode: Boolean,
     val nowMs: Long,
-    val allowUncertain: Boolean = true
+    val allowUncertain: Boolean = true,
+    val allowRecap: Boolean = true
 )
 
 /**
@@ -94,8 +63,6 @@ data class SkipSnapshot(
  * Каждый отрезок срабатывает один раз за серию; повторный просмотр с начала это сбрасывает.
  */
 class SkipDecider {
-    private class Active(val seg: SkipSegment, val countdownMs: Long)
-
     private var key: String? = null
     private var timeline: SkipTimeline? = null
     private var keyChangedAt = 0L
@@ -124,23 +91,22 @@ class SkipDecider {
         }
         maxPosition = max(maxPosition, s.positionMs)
 
-        val act = activeSegment(tl, s) ?: return idle()
-        val seg = act.seg
+        val seg = activeSegment(tl, s) ?: return idle()
         offeredKind = seg.kind
 
         if (!s.isPlaying) {
             // Пауза: кнопка остаётся, отсчёт обнуляется и пойдёт заново после продолжения
             countdownKind = null
-            return SkipStep(SkipOffer(seg.kind, 0f, secondsLeft(act.countdownMs)), null)
+            return SkipStep(SkipOffer(seg.kind, 0f, secondsLeft(SkipRules.COUNTDOWN_MS)), null)
         }
         if (countdownKind != seg.kind) {
             countdownKind = seg.kind
             countdownStart = s.nowMs
         }
         val elapsed = s.nowMs - countdownStart
-        if (elapsed < act.countdownMs) {
-            val progress = (elapsed.toFloat() / act.countdownMs).coerceIn(0f, 1f)
-            return SkipStep(SkipOffer(seg.kind, progress, secondsLeft(act.countdownMs - elapsed)), null)
+        if (elapsed < SkipRules.COUNTDOWN_MS) {
+            val progress = (elapsed.toFloat() / SkipRules.COUNTDOWN_MS).coerceIn(0f, 1f)
+            return SkipStep(SkipOffer(seg.kind, progress, secondsLeft(SkipRules.COUNTDOWN_MS - elapsed)), null)
         }
         return SkipStep(null, fire(seg, tl, s))
     }
@@ -149,8 +115,8 @@ class SkipDecider {
     fun skipNow(s: SkipSnapshot): SkipFire? {
         if (s.episodeKey != key || !s.connected) return null
         val tl = timeline ?: return null
-        val act = activeSegment(tl, s) ?: return null
-        return fire(act.seg, tl, s)
+        val seg = activeSegment(tl, s) ?: return null
+        return fire(seg, tl, s)
     }
 
     /** Человек нажал ✕: этот отрезок в этой серии больше не предлагаем. */
@@ -179,19 +145,17 @@ class SkipDecider {
         return SkipStep(null, null)
     }
 
-    private fun activeSegment(tl: SkipTimeline, s: SkipSnapshot): Active? {
+    private fun activeSegment(tl: SkipTimeline, s: SkipSnapshot): SkipSegment? {
         for (kind in SkipKind.values()) {
             if (kind in done) continue
             // На последней серии титры не пропускаем: непонятно, что сделает ТВ в конце плейлиста
             if (kind == SkipKind.CREDITS && !s.hasNextEpisode) continue
-            val seg = tl.segments.asSequence()
-                .filter { it.kind == kind }
-                .mapNotNull { SkipRules.fit(it, s.durationMs) }
-                .firstOrNull() ?: continue
+            if (kind == SkipKind.RECAP && !s.allowRecap) continue
+            val seg = tl.segments.firstOrNull { it.kind == kind && SkipRules.isUsable(it, s.durationMs) } ?: continue
             if (seg.votes < SkipRules.TRUSTED_VOTES && !s.allowUncertain) continue
             val end = effectiveEnd(seg, s.durationMs) ?: continue
             if (s.positionMs >= seg.startMs && end - s.positionMs > SkipRules.MIN_REMAINING_MS) {
-                return Active(seg, SkipRules.countdownFor(seg))
+                return seg
             }
         }
         return null

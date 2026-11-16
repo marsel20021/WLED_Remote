@@ -32,7 +32,9 @@ data class SkipInput(
     val playlist: List<String>,
     val nowMs: Long,
     /** Пропускать ли отрезки с одной отметкой (настройка "по неточным данным"). */
-    val allowUncertain: Boolean = true
+    val allowUncertain: Boolean = true,
+    /** Пропускать ли пересказ (настройка). */
+    val allowRecap: Boolean = true
 )
 
 /**
@@ -150,7 +152,8 @@ class SkipEngine(
             connected = input.connected,
             hasNextEpisode = pb.currentIndex < input.playlist.size - 1,
             nowMs = now,
-            allowUncertain = input.allowUncertain
+            allowUncertain = input.allowUncertain,
+            allowRecap = input.allowRecap
         )
         lastSnap = snap
         val step = decider.update(snap)

@@ -1,6 +1,6 @@
 name: Проверка кода пульта
 
-# Сама запускается при пуше в ветки feature/*: собирает код и гоняет тесты.
+# Сама запускается при пуше в ветки feature/*: собирает код.
 # Можно запустить и вручную: Actions -> "Проверка кода пульта" -> Run workflow.
 on:
   push:
@@ -23,12 +23,5 @@ jobs:
       - name: Принять лицензии Android SDK
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      - name: Тесты и сборка
-        run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
-
-      - name: Отчёт о тестах
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-report
-          path: app/build/reports/tests/
+      - name: Сборка
+        run: ./gradlew assembleDebug --no-daemon

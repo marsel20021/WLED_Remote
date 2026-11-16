@@ -44,7 +44,6 @@ object IntroParser {
     /** TheIntroDB: время в миллисекундах; start=null - с начала, end=null - до конца серии. */
     fun parseTheIntroDb(json: String): SourceData? {
         val o = root(json) ?: return null
-        val ref = o.longOrNull("group_duration_ms")?.takeIf { it > 0 }
         val out = ArrayList<SkipSegment>()
         fun add(key: String, kind: SkipKind) {
             for (it in items(o, key)) {
@@ -54,12 +53,12 @@ object IntroParser {
                 when (kind) {
                     SkipKind.INTRO, SkipKind.RECAP -> {
                         if (end == null) continue
-                        out.add(SkipSegment(kind, start ?: 0L, end, votes, "TheIntroDB", ref))
+                        out.add(SkipSegment(kind, start ?: 0L, end, votes, "TheIntroDB"))
                     }
                     SkipKind.CREDITS -> {
                         // начало титров неизвестно - прыгать не от чего
                         if (start == null) continue
-                        out.add(SkipSegment(kind, start, end, votes, "TheIntroDB", ref))
+                        out.add(SkipSegment(kind, start, end, votes, "TheIntroDB"))
                     }
                 }
             }
@@ -123,11 +122,11 @@ object IntroParser {
         return SkipTimeline(result, post)
     }
 
-    /** Нужен ли второй сервис: нет заставки, нет титров или у титров нет конца. */
+    /** Нужен ли второй сервис: нет заставки, пересказа, титров или у титров нет конца. */
     fun needsSecond(first: SourceData?): Boolean {
         val s = first?.segments ?: return true
         val credits = s.filter { it.kind == SkipKind.CREDITS }
-        return s.none { it.kind == SkipKind.INTRO } || credits.isEmpty() || credits.all { it.endMs == null }
+        return s.none { it.kind == SkipKind.INTRO } || s.none { it.kind == SkipKind.RECAP } || credits.isEmpty() || credits.all { it.endMs == null }
     }
 }
 

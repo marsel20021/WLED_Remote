@@ -8,9 +8,7 @@ data class SkipSegment(
     val startMs: Long,
     val endMs: Long?,
     val votes: Int,
-    val source: String,
-    /** Длина серии в базе (эталон). null - база её не отдаёт. */
-    val refDurationMs: Long? = null
+    val source: String
 )
 
 /**

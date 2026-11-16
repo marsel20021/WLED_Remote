@@ -66,7 +66,7 @@ class SkipCache(
 
     // ---------- тайм-коды серии ----------
 
-    fun timelineKey(imdbId: String, season: Int, episode: Int): String = "t:$imdbId:$season:$episode"
+    fun timelineKey(imdbId: String, season: Int, episode: Int): String = "t2:$imdbId:$season:$episode"
 
     fun getTimeline(key: String): Cached<SkipTimeline> = read(key, TIMELINE_TTL_MS) { v ->
         val o = v as? JSONObject ?: return@read null
@@ -77,8 +77,7 @@ class SkipCache(
             list.add(
                 SkipSegment(
                     SkipKind.valueOf(s.getString("k")), s.getLong("a"),
-                    if (s.isNull("b")) null else s.getLong("b"), s.getInt("v"), s.optString("src", ""),
-                    if (s.isNull("r")) null else s.getLong("r")
+                    if (s.isNull("b")) null else s.getLong("b"), s.getInt("v"), s.optString("src", "")
                 )
             )
         }
@@ -91,7 +90,7 @@ class SkipCache(
                 t.segments.forEach { s ->
                     arr.put(
                         JSONObject().put("k", s.kind.name).put("a", s.startMs).put("b", s.endMs ?: JSONObject.NULL)
-                            .put("v", s.votes).put("src", s.source).put("r", s.refDurationMs ?: JSONObject.NULL)
+                            .put("v", s.votes).put("src", s.source)
                     )
                 }
             })
