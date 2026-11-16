@@ -8,8 +8,9 @@ import org.junit.Test
 
 class SkipDeciderTest {
     private val duration = 1_440_000L // 24 минуты
-    private val intro = SkipSegment(SkipKind.INTRO, 80_000, 170_000, votes = 3, source = "T")
-    private val credits = SkipSegment(SkipKind.CREDITS, 1_332_000, 1_422_000, votes = 3, source = "T")
+    // У отрезков есть эталон, равный длине серии: сдвига нет, отсчёт 3 секунды
+    private val intro = SkipSegment(SkipKind.INTRO, 80_000, 170_000, votes = 3, source = "T", refDurationMs = duration)
+    private val credits = SkipSegment(SkipKind.CREDITS, 1_332_000, 1_422_000, votes = 3, source = "T", refDurationMs = duration)
 
     private fun snap(
         pos: Long,
@@ -18,8 +19,9 @@ class SkipDeciderTest {
         playing: Boolean = true,
         connected: Boolean = true,
         next: Boolean = true,
-        dur: Long = duration
-    ) = SkipSnapshot(key, pos, dur, playing, connected, next, now)
+        dur: Long = duration,
+        allowUncertain: Boolean = true
+    ) = SkipSnapshot(key, pos, dur, playing, connected, next, now, allowUncertain)
 
     /** Серия началась в момент 0, данные пришли, ждём пока пройдёт защитная пауза. */
     private fun ready(tl: SkipTimeline): SkipDecider {
@@ -47,7 +49,7 @@ class SkipDeciderTest {
     fun `автоотсчёт идёт три секунды и потом прыгает на конец заставки`() {
         val d = ready(SkipTimeline(listOf(intro)))
         val a = d.update(snap(100_000, 3_000))
-        assertEquals(SkipMode.AUTO, a.offer!!.mode)
+        assertEquals(3, a.offer!!.secondsLeft)
         assertEquals(0f, a.offer!!.progress, 0.001f)
         val b = d.update(snap(101_500, 4_500))
         assertEquals(0.5f, b.offer!!.progress, 0.001f)
@@ -72,15 +74,35 @@ class SkipDeciderTest {
     }
 
     @Test
-    fun `мало отметок или догадка по номеру - только кнопка без прыжка`() {
-        val few = ready(SkipTimeline(listOf(intro.copy(votes = 1))))
-        val s1 = few.update(snap(100_000, 3_000))
-        assertEquals(SkipMode.MANUAL, s1.offer!!.mode)
-        assertNull(few.update(snap(110_000, 30_000)).fire)
+    fun `одна отметка - пропускаем, если настройка включена, иначе нет`() {
+        val on = ready(SkipTimeline(listOf(intro.copy(votes = 1))))
+        assertNotNull(on.update(snap(100_000, 3_000)).offer)
 
-        val guess = ready(SkipTimeline(listOf(intro), autoAllowed = false))
-        assertEquals(SkipMode.MANUAL, guess.update(snap(100_000, 3_000)).offer!!.mode)
-        assertNull(guess.update(snap(110_000, 30_000)).fire)
+        val strict = ready(SkipTimeline(listOf(intro.copy(votes = 1))))
+        assertNull(strict.update(snap(100_000, 3_000, allowUncertain = false)).offer)
+    }
+
+    @Test
+    fun `без эталона отсчёт пять секунд`() {
+        val d = ready(SkipTimeline(listOf(intro.copy(refDurationMs = null))))
+        assertEquals(5, d.update(snap(100_000, 3_000)).offer!!.secondsLeft)
+        assertNull(d.update(snap(103_000, 6_000)).fire)
+        assertNotNull(d.update(snap(105_000, 8_000)).fire)
+    }
+
+    @Test
+    fun `файл длиннее эталона - отрезок сдвигается, слишком длиннее или короче - нет`() {
+        // файл на 10 секунд длиннее эталона: заставка 80..170 становится 90..180
+        val shifted = ready(SkipTimeline(listOf(intro.copy(refDurationMs = duration - 10_000))))
+        assertNull(shifted.update(snap(85_000, 3_000)).offer)
+        assertNotNull(shifted.update(snap(95_000, 4_000)).offer)
+        assertEquals(SkipAction.SeekTo(180_000), shifted.update(snap(100_000, 7_000)).fire!!.action)
+
+        val tooLong = ready(SkipTimeline(listOf(intro.copy(refDurationMs = duration - 40_000))))
+        assertNull(tooLong.update(snap(100_000, 3_000)).offer)
+
+        val shorter = ready(SkipTimeline(listOf(intro.copy(refDurationMs = duration + 10_000))))
+        assertNull(shorter.update(snap(100_000, 3_000)).offer)
     }
 
     @Test
@@ -186,7 +208,7 @@ class SkipDeciderTest {
     }
 
     @Test
-    fun `титры до конца серии - следующая серия, а на последней прыжок к концу`() {
+    fun `титры до конца серии - следующая серия, а на последней не пропускаем`() {
         val open = credits.copy(endMs = null)
         val d = ready(SkipTimeline(listOf(open)))
         d.update(snap(1_340_000, 3_000))
@@ -194,10 +216,9 @@ class SkipDeciderTest {
         assertEquals(SkipAction.NextEpisode, f.action)
         assertNull(f.returnToMs)
 
+        // На последней серии титры не пропускаем
         val last = ready(SkipTimeline(listOf(open)))
-        last.update(snap(1_340_000, 3_000, next = false))
-        val f2 = last.update(snap(1_343_000, 6_000, next = false)).fire!!
-        assertEquals(SkipAction.SeekTo(duration - 1_000), f2.action)
+        assertNull(last.update(snap(1_340_000, 3_000, next = false)).offer)
     }
 
     @Test

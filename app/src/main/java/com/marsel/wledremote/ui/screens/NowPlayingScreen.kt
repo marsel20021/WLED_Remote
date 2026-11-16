@@ -213,11 +213,11 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?, skip: SkipCo
                     onSeek = viewModel::onSeek
                 )
 
-                // Место под кнопку пропуска занято заранее, чтобы кнопки управления не прыгали из-под пальца.
-                // Для фильмов и при выключенной галочке места нет.
-                if (skipUi.active) {
+                // Кнопка пропуска появляется только когда она есть и сдвигает остальное, место заранее не занимаем
+                if (skipUi.offer != null || skipUi.undo != null) {
+                    Spacer(Modifier.height(12.dp))
                     Box(
-                        modifier = Modifier.fillMaxWidth().height(64.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
                         SkipButton(
@@ -228,6 +228,7 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?, skip: SkipCo
                             onUndo = skip::undo
                         )
                     }
+                    Spacer(Modifier.height(12.dp))
                 } else {
                     Spacer(Modifier.height(24.dp))
                 }

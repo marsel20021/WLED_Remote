@@ -15,9 +15,7 @@ data class SkipUndo(val kind: SkipKind)
 data class SkipUiState(
     val offer: SkipOffer? = null,
     val seasonChoice: SeasonChoice? = null,
-    val undo: SkipUndo? = null,
-    /** true, если это сериал с номером серии и автопропуск включён: экран резервирует место под кнопку. */
-    val active: Boolean = false
+    val undo: SkipUndo? = null
 )
 
 /** Команды ТВ. */
@@ -32,7 +30,9 @@ data class SkipInput(
     val connected: Boolean,
     val playback: PlaybackUiState,
     val playlist: List<String>,
-    val nowMs: Long
+    val nowMs: Long,
+    /** Пропускать ли отрезки с одной отметкой (настройка "по неточным данным"). */
+    val allowUncertain: Boolean = true
 )
 
 /**
@@ -62,6 +62,7 @@ class SkipEngine(
     private var series: SeriesInfo? = null
     private var seriesState = Load.NONE
     private var seriesRetryAt = 0L
+    private var seriesFails = 0
     private var fingerprint: String? = null
     private var manualPick: Int? = null
     private var cachedPickFor: String? = null
@@ -71,9 +72,9 @@ class SkipEngine(
     private var epKey: String? = null
     private var tlState = Load.NONE
     private var tlRetryAt = 0L
+    private var tlFails = 0
     private var tlValue: SkipTimeline? = null
     private var tlApplied = false
-    private var epAuto = true
 
     private var undo: Undo? = null
     private var lastInput: SkipInput? = null
@@ -97,6 +98,7 @@ class SkipEngine(
             series = null
             seriesState = Load.NONE
             seriesRetryAt = 0L
+            seriesFails = 0
             fingerprint = null
             manualPick = null
             epKey = null
@@ -113,7 +115,7 @@ class SkipEngine(
         val info = series
         if (seriesState != Load.READY || info == null) {
             lastSnap = null
-            return SkipUiState(undo = currentUndo(), active = true)
+            return SkipUiState(undo = currentUndo())
         }
 
         // Какой сезон: из названия, единственный, или выбранный человеком
@@ -123,25 +125,22 @@ class SkipEngine(
         val choice = if (fixedSeason == null && seasons.size >= 2) SeasonChoice(seasons, season) else null
         if (season == null) {
             lastSnap = null
-            return SkipUiState(seasonChoice = choice, active = true)
+            return SkipUiState(seasonChoice = choice)
         }
-        val resolved = SeasonMath.resolve(season, ctx.ref.episode, info.seasonCounts)
-        if (resolved == null) {
-            lastSnap = null
-            return SkipUiState(seasonChoice = choice, active = true)
-        }
+        // Номер серии берём из названия как есть: базы тайм-кодов сами скажут, есть ли такая серия
+        val episode = ctx.ref.episode
 
-        val key = "$fp|${pb.currentIndex}|${pb.title}|S${resolved.season}E${resolved.episode}"
+        val key = "$fp|${pb.currentIndex}|${pb.title}|S${season}E$episode"
         if (key != epKey) {
             epKey = key
             tlState = Load.NONE
             tlRetryAt = 0L
+            tlFails = 0
             tlValue = null
             tlApplied = false
-            epAuto = !resolved.converted
             undo = null
         }
-        ensureTimeline(key, info, resolved)
+        ensureTimeline(key, info.imdbId, season, episode)
 
         val snap = SkipSnapshot(
             episodeKey = key,
@@ -150,16 +149,17 @@ class SkipEngine(
             isPlaying = pb.isPlaying,
             connected = input.connected,
             hasNextEpisode = pb.currentIndex < input.playlist.size - 1,
-            nowMs = now
+            nowMs = now,
+            allowUncertain = input.allowUncertain
         )
         lastSnap = snap
         val step = decider.update(snap)
         if (tlState == Load.READY && !tlApplied) {
-            decider.setTimeline(key, tlValue?.copy(autoAllowed = epAuto))
+            decider.setTimeline(key, tlValue)
             tlApplied = true
         }
         step.fire?.let { execute(it, pb.durationMs) }
-        return SkipUiState(offer = step.offer, seasonChoice = choice, undo = currentUndo(), active = true)
+        return SkipUiState(offer = step.offer, seasonChoice = choice, undo = currentUndo())
     }
 
     /** Человек нажал кнопку "Пропустить". */
@@ -269,6 +269,7 @@ class SkipEngine(
                 cache.putSeries(cacheKey, result.info)
                 series = result.info
                 seriesState = Load.READY
+                seriesFails = 0
                 log("сериал найден: ${result.info.title}, сезонов ${result.info.seasonCounts.size}")
             }
             SeriesLookupResult.NotFound -> {
@@ -278,16 +279,17 @@ class SkipEngine(
             }
             is SeriesLookupResult.Failed -> {
                 seriesState = Load.FAILED
-                seriesRetryAt = now + if (result.quota) QUOTA_RETRY_MS else RETRY_MS
+                seriesFails++
+                seriesRetryAt = now + if (result.quota) QUOTA_RETRY_MS else backoff(seriesFails)
                 log("сбой поиска: ${result.reason}")
             }
         }
     }
 
-    private fun ensureTimeline(key: String, info: SeriesInfo, ep: ResolvedEpisode) {
+    private fun ensureTimeline(key: String, imdbId: String, season: Int, episode: Int) {
         if (tlState == Load.FAILED && now >= tlRetryAt) tlState = Load.NONE
         if (tlState != Load.NONE) return
-        val cacheKey = cache.timelineKey(info.imdbId, ep.season, ep.episode)
+        val cacheKey = cache.timelineKey(imdbId, season, episode)
         when (val c = cache.getTimeline(cacheKey)) {
             is Cached.Hit -> {
                 tlValue = c.value
@@ -298,7 +300,7 @@ class SkipEngine(
         }
         tlState = Load.LOADING
         runAsync {
-            val result = intro(info.imdbId, ep.season, ep.episode)
+            val result = intro(imdbId, season, episode)
             post { onTimeline(key, cacheKey, result) }
         }
     }
@@ -320,15 +322,22 @@ class SkipEngine(
             }
             is IntroResult.Failed -> {
                 tlState = Load.FAILED
-                tlRetryAt = now + RETRY_MS
+                tlFails++
+                tlRetryAt = now + backoff(tlFails)
                 log("сбой тайм-кодов: ${result.reason}")
             }
         }
     }
 
+    /** Паузы между повторами при сбоях: минута, 5 минут, дальше 15 минут. */
+    private fun backoff(fails: Int): Long = when {
+        fails <= 1 -> 60_000L
+        fails == 2 -> 300_000L
+        else -> 900_000L
+    }
+
     companion object {
         const val UNDO_MS = 8_000L
-        const val RETRY_MS = 60_000L
         const val QUOTA_RETRY_MS = 60L * 60 * 1000
     }
 }

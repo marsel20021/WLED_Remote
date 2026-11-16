@@ -36,8 +36,8 @@ class SkipEngineTest {
     private var introResult: IntroResult = IntroResult.Found(
         SkipTimeline(
             listOf(
-                SkipSegment(SkipKind.INTRO, 80_000, 170_000, 3, "T"),
-                SkipSegment(SkipKind.CREDITS, 1_332_000, 1_422_000, 3, "T")
+                SkipSegment(SkipKind.INTRO, 80_000, 170_000, 3, "T", 1_440_000),
+                SkipSegment(SkipKind.CREDITS, 1_332_000, 1_422_000, 3, "T", 1_440_000)
             )
         )
     )
@@ -103,7 +103,7 @@ class SkipEngineTest {
         assertNull(ui.seasonChoice)
         assertEquals(Triple("tt0944947", 1, 3), lastIntroArgs)
         ui = e.evaluate(input(100_000, 3_000))
-        assertEquals(SkipMode.AUTO, ui.offer!!.mode)
+        assertEquals(3, ui.offer!!.secondsLeft)
         ui = e.evaluate(input(103_000, 6_000))
         assertEquals(listOf(170_000L), actions.seeks)
         assertNotNull(ui.undo)
@@ -158,21 +158,16 @@ class SkipEngineTest {
     }
 
     @Test
-    fun `сквозная нумерация - только кнопка, без автопрыжка`() {
+    fun `номер серии не пересчитывается - запрос идёт как в названии`() {
         lookupResult = SeriesLookupResult.Found(SeriesInfo(1, "tt1", "Аниме", 2020, mapOf(1 to 12, 2 to 12)))
         val e = engine()
-        // серия 15 при 12 сериях в первом сезоне - пересчитываем в серию 3 второго сезона
         val list = (1..24).map { "$it серия" }
         e.evaluate(input(0, 0, title = "15 серия", movie = "Аниме", index = 14, list = list))
         e.pickSeason(2)
         e.evaluate(input(0, 500, title = "15 серия", movie = "Аниме", index = 14, list = list))
-        assertEquals(Triple("tt1", 2, 3), lastIntroArgs)
-        var ui = e.evaluate(input(100_000, 5_000, title = "15 серия", movie = "Аниме", index = 14, list = list))
-        assertEquals(SkipMode.MANUAL, ui.offer!!.mode)
-        ui = e.evaluate(input(120_000, 30_000, title = "15 серия", movie = "Аниме", index = 14, list = list))
-        assertTrue(actions.seeks.isEmpty())
-        e.skipNow(31_000)
-        assertEquals(listOf(170_000L), actions.seeks)
+        assertEquals(Triple("tt1", 2, 15), lastIntroArgs)
+        val ui = e.evaluate(input(100_000, 5_000, title = "15 серия", movie = "Аниме", index = 14, list = list))
+        assertNotNull(ui.offer)
     }
 
     @Test
@@ -298,23 +293,23 @@ class SkipEngineTest {
     }
 
     @Test
-    fun `титры до конца на последней серии - прыжок к концу`() {
+    fun `на последней серии титры не пропускаем`() {
         introResult = IntroResult.Found(
-            SkipTimeline(listOf(SkipSegment(SkipKind.CREDITS, 1_332_000, null, 3, "T")))
+            SkipTimeline(listOf(SkipSegment(SkipKind.CREDITS, 1_332_000, null, 3, "T", 1_440_000)))
         )
         val e = engine()
         e.evaluate(input(0, 0, index = 9, title = "10 серия"))
-        e.evaluate(input(1_340_000, 3_000, index = 9, title = "10 серия"))
+        val ui = e.evaluate(input(1_340_000, 3_000, index = 9, title = "10 серия"))
+        assertNull(ui.offer)
         e.evaluate(input(1_343_000, 6_000, index = 9, title = "10 серия"))
-        assertEquals(listOf(1_440_000L - 1_000), actions.seeks)
+        assertTrue(actions.seeks.isEmpty())
         assertEquals(0, actions.nextCount)
-        assertFalse(actions.seeks.isEmpty())
     }
 
     @Test
     fun `титры до конца на обычной серии - следующая серия`() {
         introResult = IntroResult.Found(
-            SkipTimeline(listOf(SkipSegment(SkipKind.CREDITS, 1_332_000, null, 3, "T")))
+            SkipTimeline(listOf(SkipSegment(SkipKind.CREDITS, 1_332_000, null, 3, "T", 1_440_000)))
         )
         val e = engine()
         e.evaluate(input(0, 0))

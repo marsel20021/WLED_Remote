@@ -30,12 +30,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.marsel.wledremote.skip.SkipKind
-import com.marsel.wledremote.skip.SkipMode
 import com.marsel.wledremote.skip.SkipOffer
 import com.marsel.wledremote.skip.SkipUndo
 
 /**
- * Кнопка пропуска. Если есть предложение - стеклянная пилюля с полоской отсчёта и крестиком.
+ * Кнопка пропуска. Если есть предложение - стеклянная пилюля с полоской отсчёта, секундами и крестиком.
  * После прыжка - пилюля "Пропущено · Вернуть". Если нечего показывать, не рисуется.
  */
 @Composable
@@ -70,15 +69,13 @@ private fun OfferPill(offer: SkipOffer, onSkip: () -> Unit, onCancel: () -> Unit
         label = "skip_progress"
     )
     Box(modifier = modifier.height(44.dp).glass(shape)) {
-        if (offer.mode == SkipMode.AUTO) {
-            Box(modifier = Modifier.matchParentSize()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(progress.coerceIn(0f, 1f))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.40f))
-                )
-            }
+        Box(modifier = Modifier.matchParentSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(progress.coerceIn(0f, 1f))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.40f))
+            )
         }
         Row(
             modifier = Modifier.height(44.dp),
@@ -99,7 +96,7 @@ private fun OfferPill(offer: SkipOffer, onSkip: () -> Unit, onCancel: () -> Unit
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = labelFor(offer.kind),
+                    text = "${labelFor(offer.kind)} · ${offer.secondsLeft}",
                     color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
