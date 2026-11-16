@@ -83,6 +83,8 @@ import java.util.Locale
 fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?, skip: SkipController) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val skipUi by skip.ui.collectAsStateWithLifecycle()
+    // Подпись сезона на плашке плейлиста: только если у сериала больше одного сезона и сезон известен
+    val seasonLabel = skipUi.seasonChoice?.takeIf { it.seasons.size > 1 }?.selected
     val connectionStatus by viewModel.connectionStatus.collectAsStateWithLifecycle()
     val playlist by viewModel.playlist.collectAsStateWithLifecycle()
     val seekHint by viewModel.seekHint.collectAsStateWithLifecycle()
@@ -111,7 +113,7 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?, skip: SkipCo
                 ) {
                     ConnectionPill(status = connectionStatus, onClick = { showConnection = true })
                     if (playlist.size > 1) {
-                        PlaylistPill(count = playlist.size, onClick = { showPlaylist = true })
+                        PlaylistPill(count = playlist.size, season = seasonLabel, onClick = { showPlaylist = true })
                     }
                 }
             } else {
@@ -127,7 +129,7 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?, skip: SkipCo
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                         horizontalArrangement = Arrangement.End
                     ) {
-                        PlaylistPill(count = playlist.size, onClick = { showPlaylist = true })
+                        PlaylistPill(count = playlist.size, season = seasonLabel, onClick = { showPlaylist = true })
                     }
                 }
             }
@@ -200,8 +202,8 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?, skip: SkipCo
                     }
                 }
 
-                // Плашка выбора сезона: только если у сериала несколько сезонов
-                skipUi.seasonChoice?.let { choice ->
+                // Плашка выбора сезона: один раз, пока сезон не выбран. Потом сезон меняется в шторке плейлиста
+                skipUi.seasonChoice?.takeIf { it.selected == null }?.let { choice ->
                     Spacer(Modifier.height(12.dp))
                     SeasonPicker(choice = choice, onPick = skip::pickSeason)
                 }
@@ -315,7 +317,9 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?, skip: SkipCo
                 viewModel.onSelectEpisode(index)
                 showPlaylist = false
             },
-            onDismiss = { showPlaylist = false }
+            onDismiss = { showPlaylist = false },
+            seasonChoice = skipUi.seasonChoice,
+            onPickSeason = skip::pickSeason
         )
     }
 }
@@ -359,7 +363,7 @@ private fun PosterCard(look: PosterLook?, title: String, height: Dp) {
 }
 
 @Composable
-private fun PlaylistPill(count: Int, onClick: () -> Unit) {
+private fun PlaylistPill(count: Int, season: Int?, onClick: () -> Unit) {
     GlassPill(onClick = onClick) {
         Icon(
             Icons.Filled.List,
@@ -369,7 +373,7 @@ private fun PlaylistPill(count: Int, onClick: () -> Unit) {
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            text = "Плейлист · $count",
+            text = if (season != null) "Плейлист · $count · С$season" else "Плейлист · $count",
             color = MaterialTheme.colorScheme.onBackground,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold

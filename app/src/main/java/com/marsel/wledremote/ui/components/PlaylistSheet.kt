@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.marsel.wledremote.skip.SeasonChoice
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,7 +32,9 @@ fun PlaylistSheet(
     items: List<String>,
     currentIndex: Int,
     onSelect: (Int) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    seasonChoice: SeasonChoice? = null,
+    onPickSeason: (Int) -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState()
 
@@ -44,6 +47,14 @@ fun PlaylistSheet(
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
         )
+        // Смена сезона: кружки показываем, только если у сериала больше одного сезона
+        if (seasonChoice != null && seasonChoice.seasons.size > 1) {
+            SeasonChips(
+                choice = seasonChoice,
+                onPick = onPickSeason,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+            )
+        }
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
         LazyColumn(modifier = Modifier.padding(bottom = 24.dp)) {
