@@ -35,6 +35,7 @@ import com.marsel.wledremote.data.PosterRepository
 import com.marsel.wledremote.data.RemoteRepository
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.service.PlaybackService
+import com.marsel.wledremote.skip.SkipController
 import com.marsel.wledremote.skip.SkipSettings
 import com.marsel.wledremote.ui.components.GlassNavBar
 import com.marsel.wledremote.ui.components.GlassNavTab
@@ -70,7 +71,8 @@ class MainActivity : ComponentActivity() {
                 MainApp(
                     repository = repository,
                     posters = (application as WledRemoteApp).posters,
-                    skipSettings = (application as WledRemoteApp).skipSettings
+                    skipSettings = (application as WledRemoteApp).skipSettings,
+                    skip = (application as WledRemoteApp).skip
                 )
             }
         }
@@ -110,7 +112,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainApp(repository: RemoteRepository, posters: PosterRepository, skipSettings: SkipSettings) {
+fun MainApp(
+    repository: RemoteRepository,
+    posters: PosterRepository,
+    skipSettings: SkipSettings,
+    skip: SkipController
+) {
     val factory = remember { RemoteViewModelFactory(repository, skipSettings) }
     var selectedTab by remember { mutableStateOf(RemoteTab.NOW_PLAYING) }
 

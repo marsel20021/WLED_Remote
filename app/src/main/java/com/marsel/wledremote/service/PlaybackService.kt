@@ -73,6 +73,8 @@ class PlaybackService : Service() {
         super.onCreate()
 
         repository = (application as WledRemoteApp).repository
+        // Автопропуск должен работать и без открытого пульта
+        (application as WledRemoteApp).skip
         notificationManager = getSystemService(NotificationManager::class.java)
         posters = PosterRepository(applicationContext)
 
