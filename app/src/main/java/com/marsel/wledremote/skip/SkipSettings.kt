@@ -5,14 +5,22 @@ import com.marsel.wledremote.data.LocalPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/** Галочка "Автопропуск": одна на всё приложение, хранится на телефоне. */
+/** Настройки автопропуска: одни на всё приложение, хранятся на телефоне. */
 class SkipSettings(context: Context) {
     private val prefs = LocalPrefs(context)
     private val _enabled = MutableStateFlow(prefs.skipEnabled)
     val enabled: StateFlow<Boolean> = _enabled
 
+    private val _uncertain = MutableStateFlow(prefs.skipUncertain)
+    val uncertain: StateFlow<Boolean> = _uncertain
+
     fun setEnabled(value: Boolean) {
         prefs.skipEnabled = value
         _enabled.value = value
+    }
+
+    fun setUncertain(value: Boolean) {
+        prefs.skipUncertain = value
+        _uncertain.value = value
     }
 }

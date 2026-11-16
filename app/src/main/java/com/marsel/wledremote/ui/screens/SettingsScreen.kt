@@ -40,6 +40,7 @@ import com.marsel.wledremote.viewmodel.SettingsViewModel
 fun SettingsScreen(viewModel: SettingsViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val skipEnabled by viewModel.skipEnabled.collectAsStateWithLifecycle()
+    val skipUncertain by viewModel.skipUncertain.collectAsStateWithLifecycle()
 
     var wledIp by remember(state.wledIp) { mutableStateOf(state.wledIp) }
     var udpPort by remember(state.udpPort) { mutableStateOf(state.udpPort) }
@@ -161,6 +162,12 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             LabeledSwitch("Автопропуск заставки и титров", skipEnabled, viewModel::updateSkipEnabled)
             Text(
                 "Для сериалов и аниме. Применяется сразу. Выключено - никаких запросов и кнопки пропуска",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            LabeledSwitch("Пропускать по неточным данным", skipUncertain, viewModel::updateSkipUncertain)
+            Text(
+                "Если в базе у отрезка всего одна отметка. Выключено - пропускаются только проверенные несколькими людьми",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 class SkipController(
     private val repository: RemoteRepository,
     private val enabled: StateFlow<Boolean>,
+    private val allowUncertain: StateFlow<Boolean>,
     cache: SkipCache
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -84,7 +85,8 @@ class SkipController(
                     connected = repository.connectionStatus.value == ConnectionStatus.CONNECTED,
                     playback = repository.playbackState.value,
                     playlist = repository.playlist.value,
-                    nowMs = now()
+                    nowMs = now(),
+                    allowUncertain = allowUncertain.value
                 )
                 val state = engine.evaluate(input)
                 _ui.value = state

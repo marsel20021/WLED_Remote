@@ -84,6 +84,8 @@ class SettingsViewModel(
     /** Автопропуск заставок и титров (хранится только на телефоне). */
     val skipEnabled: StateFlow<Boolean> = skipSettings.enabled
     fun updateSkipEnabled(value: Boolean) = skipSettings.setEnabled(value)
+    val skipUncertain: StateFlow<Boolean> = skipSettings.uncertain
+    fun updateSkipUncertain(value: Boolean) = skipSettings.setUncertain(value)
 
     fun updateBrightness(value: Int) = repository.updateSettings { it.copy(brightness = value) }
     fun updateGamma(value: Int) = repository.updateSettings { it.copy(gamma = value) }
