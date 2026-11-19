@@ -18,11 +18,6 @@ class LocalPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_SKIP_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_SKIP_ENABLED, value).apply()
 
-    /** Пропускать отрезки, у которых всего одна отметка в базе. По умолчанию включено. */
-    var skipUncertain: Boolean
-        get() = prefs.getBoolean(KEY_SKIP_UNCERTAIN, true)
-        set(value) = prefs.edit().putBoolean(KEY_SKIP_UNCERTAIN, value).apply()
-
     /** Пропускать пересказ ("в предыдущих сериях"). По умолчанию включено. */
     var skipRecap: Boolean
         get() = prefs.getBoolean(KEY_SKIP_RECAP, true)
@@ -31,7 +26,6 @@ class LocalPrefs(context: Context) {
     companion object {
         private const val KEY_TV_IP = "tv_ip"
         private const val KEY_SKIP_ENABLED = "skip_enabled"
-        private const val KEY_SKIP_UNCERTAIN = "skip_uncertain"
         private const val KEY_SKIP_RECAP = "skip_recap"
     }
 }

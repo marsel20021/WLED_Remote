@@ -40,7 +40,6 @@ import com.marsel.wledremote.viewmodel.SettingsViewModel
 fun SettingsScreen(viewModel: SettingsViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val skipEnabled by viewModel.skipEnabled.collectAsStateWithLifecycle()
-    val skipUncertain by viewModel.skipUncertain.collectAsStateWithLifecycle()
     val skipRecap by viewModel.skipRecap.collectAsStateWithLifecycle()
 
     var wledIp by remember(state.wledIp) { mutableStateOf(state.wledIp) }
@@ -169,12 +168,6 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             LabeledSwitch("Пропускать пересказ", skipRecap, viewModel::updateSkipRecap)
             Text(
                 "\"В предыдущих сериях\" в начале серии",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            LabeledSwitch("Пропускать по неточным данным", skipUncertain, viewModel::updateSkipUncertain)
-            Text(
-                "Если в базе у отрезка всего одна отметка. Выключено - пропускаются только проверенные несколькими людьми",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

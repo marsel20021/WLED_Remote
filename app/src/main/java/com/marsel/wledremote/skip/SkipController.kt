@@ -23,7 +23,6 @@ import kotlinx.coroutines.launch
 class SkipController(
     private val repository: RemoteRepository,
     private val enabled: StateFlow<Boolean>,
-    private val allowUncertain: StateFlow<Boolean>,
     private val allowRecap: StateFlow<Boolean>,
     cache: SkipCache
 ) {
@@ -87,7 +86,6 @@ class SkipController(
                     playback = repository.playbackState.value,
                     playlist = repository.playlist.value,
                     nowMs = now(),
-                    allowUncertain = allowUncertain.value,
                     allowRecap = allowRecap.value
                 )
                 val state = engine.evaluate(input)

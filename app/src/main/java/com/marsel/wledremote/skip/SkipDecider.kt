@@ -10,7 +10,6 @@ object SkipRules {
     const val SETTLE_MS = 2_500L            // после смены серии позицию не трогаем: первое состояние может быть от прошлой серии
     const val QUIET_MS = 2_500L             // после нашего прыжка не показываем ничего: плеер ещё присылает старую позицию
     const val MIN_REMAINING_MS = 3_000L     // если до конца отрезка меньше, прыгать уже незачем
-    const val TRUSTED_VOTES = 2             // столько отметок хватает, чтобы считать отрезок надёжным
     const val MAX_INTRO_MS = 300_000L       // заставка или пересказ дольше 5 минут - явная ошибка в данных
     const val END_MARGIN_MS = 1_000L
     const val RESTART_BELOW_MS = 5_000L     // серию запустили с начала
@@ -44,7 +43,7 @@ object SkipRules {
 
 /**
  * Снимок того, что сейчас играет. nowMs - монотонное время телефона.
- * allowUncertain: пропускать ли отрезки, у которых только одна отметка. allowRecap: пропускать ли пересказ.
+ * allowRecap: пропускать ли пересказ.
  */
 data class SkipSnapshot(
     val episodeKey: String,
@@ -54,7 +53,6 @@ data class SkipSnapshot(
     val connected: Boolean,
     val hasNextEpisode: Boolean,
     val nowMs: Long,
-    val allowUncertain: Boolean = true,
     val allowRecap: Boolean = true
 )
 
@@ -152,7 +150,6 @@ class SkipDecider {
             if (kind == SkipKind.CREDITS && !s.hasNextEpisode) continue
             if (kind == SkipKind.RECAP && !s.allowRecap) continue
             val seg = tl.segments.firstOrNull { it.kind == kind && SkipRules.isUsable(it, s.durationMs) } ?: continue
-            if (seg.votes < SkipRules.TRUSTED_VOTES && !s.allowUncertain) continue
             val end = effectiveEnd(seg, s.durationMs) ?: continue
             if (s.positionMs >= seg.startMs && end - s.positionMs > SkipRules.MIN_REMAINING_MS) {
                 return seg

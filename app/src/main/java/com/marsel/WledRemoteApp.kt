@@ -28,6 +28,6 @@ class WledRemoteApp : Application() {
      * Запускается при первом обращении (из MainActivity или из сервиса).
      */
     val skip: SkipController by lazy {
-        SkipController(repository, skipSettings.enabled, skipSettings.uncertain, skipSettings.recap, SkipCache(SharedPrefsStore(this))).also { it.start() }
+        SkipController(repository, skipSettings.enabled, skipSettings.recap, SkipCache(SharedPrefsStore(this))).also { it.start() }
     }
 }
