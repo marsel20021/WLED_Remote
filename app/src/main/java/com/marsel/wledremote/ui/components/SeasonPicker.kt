@@ -25,8 +25,8 @@ import androidx.compose.ui.unit.sp
 import com.marsel.wledremote.skip.SeasonChoice
 
 /**
- * Плашка "Какой это сезон?". Показывается, пока сезон не выбран. Потом на её месте остаётся компактная
- * полоса [SeasonBar], так что сезон можно сменить в любой момент (и здесь, и в шторке плейлиста).
+ * Плашка "Какой это сезон?". Показывается один раз, пока сезон не выбран, потом пропадает.
+ * Поменять сезон потом можно в шторке плейлиста.
  */
 @Composable
 fun SeasonPicker(choice: SeasonChoice, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
@@ -45,24 +45,6 @@ fun SeasonPicker(choice: SeasonChoice, onPick: (Int) -> Unit, modifier: Modifier
             onPick = onPick,
             modifier = Modifier.padding(top = 8.dp)
         )
-    }
-}
-
-/** Компактная полоса "Сезон" с кружками: сезон уже выбран, но его можно поменять. */
-@Composable
-fun SeasonBar(choice: SeasonChoice, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.glass(RoundedCornerShape(20.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            text = "Сезон",
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium
-        )
-        SeasonChips(choice = choice, onPick = onPick)
     }
 }
 

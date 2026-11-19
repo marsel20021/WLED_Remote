@@ -68,7 +68,6 @@ import com.marsel.wledremote.ui.components.ConnectionStatusCard
 import com.marsel.wledremote.ui.components.GlassPill
 import com.marsel.wledremote.ui.components.PlaylistSheet
 import com.marsel.wledremote.ui.components.PosterLook
-import com.marsel.wledremote.ui.components.SeasonBar
 import com.marsel.wledremote.ui.components.SeasonPicker
 import com.marsel.wledremote.ui.components.SkipButton
 import com.marsel.wledremote.ui.theme.TimecodeStyle
@@ -203,15 +202,11 @@ fun NowPlayingScreen(viewModel: PlayerViewModel, look: PosterLook?, skip: SkipCo
                     }
                 }
 
-                // Сезон: пока не выбран - вопрос, потом компактная полоса, где его можно сменить в любой момент.
-                // Выбор общий с ТВ: поменял здесь, на ТВ тоже поменялось, и наоборот
-                skipUi.seasonChoice?.let { choice ->
+                // Плашка выбора сезона: один раз, пока сезон не выбран. Потом сезон меняется в шторке плейлиста.
+                // Выбор общий с ТВ: поменял здесь или на ТВ, везде одинаково
+                skipUi.seasonChoice?.takeIf { it.selected == null }?.let { choice ->
                     Spacer(Modifier.height(12.dp))
-                    if (choice.selected == null) {
-                        SeasonPicker(choice = choice, onPick = skip::pickSeason)
-                    } else {
-                        SeasonBar(choice = choice, onPick = skip::pickSeason)
-                    }
+                    SeasonPicker(choice = choice, onPick = skip::pickSeason)
                 }
                 if (skipUi.seasonChoice == null && skipUi.seasonsUnavailable) {
                     Spacer(Modifier.height(12.dp))
