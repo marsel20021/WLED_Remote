@@ -162,7 +162,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         SettingsCard("Серии") {
             LabeledSwitch("Автопропуск заставки и титров", skipEnabled, viewModel::updateSkipEnabled)
             Text(
-                "Для сериалов и аниме. Применяется сразу. Выключено - никаких запросов и кнопки пропуска",
+                "Для сериалов и аниме. Тайм-коды ищет и считает ТВ, здесь только переключатели. Применяется сразу",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

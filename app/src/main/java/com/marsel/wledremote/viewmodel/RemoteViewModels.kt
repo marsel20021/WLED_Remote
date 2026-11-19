@@ -11,7 +11,9 @@ import com.marsel.wledremote.model.CaptureMode
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.model.EngineKind
 import com.marsel.wledremote.model.PlaybackUiState
-import com.marsel.wledremote.skip.SkipSettings
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,18 +78,17 @@ class PlayerViewModel(
 }
 
 class SettingsViewModel(
-    private val repository: RemoteRepository,
-    private val skipSettings: SkipSettings
+    private val repository: RemoteRepository
 ) : ViewModel() {
     val state: StateFlow<AmbilightSettingsUiState> = repository.settingsState
 
-    /** Автопропуск заставок и титров (хранится только на телефоне). */
-    val skipEnabled: StateFlow<Boolean> = skipSettings.enabled
-    fun updateSkipEnabled(value: Boolean) = skipSettings.setEnabled(value)
-    val skipRecap: StateFlow<Boolean> = skipSettings.recap
-    val skipHold: StateFlow<Boolean> = skipSettings.hold
-    fun updateSkipHold(value: Boolean) = skipSettings.setHold(value)
-    fun updateSkipRecap(value: Boolean) = skipSettings.setRecap(value)
+    /** Автопропуск заставок и титров. Настройки хранит ТВ, здесь они только переключаются. */
+    val skipEnabled: StateFlow<Boolean> = repository.settingsState.map { it.skipEnabled }.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val skipRecap: StateFlow<Boolean> = repository.settingsState.map { it.skipRecap }.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val skipHold: StateFlow<Boolean> = repository.settingsState.map { it.skipHold }.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    fun updateSkipEnabled(value: Boolean) = repository.updateSettings { it.copy(skipEnabled = value) }
+    fun updateSkipRecap(value: Boolean) = repository.updateSettings { it.copy(skipRecap = value) }
+    fun updateSkipHold(value: Boolean) = repository.updateSettings { it.copy(skipHold = value) }
 
     fun updateBrightness(value: Int) = repository.updateSettings { it.copy(brightness = value) }
     fun updateGamma(value: Int) = repository.updateSettings { it.copy(gamma = value) }
@@ -151,14 +152,13 @@ class SettingsViewModel(
 }
 
 class RemoteViewModelFactory(
-    private val repository: RemoteRepository,
-    private val skipSettings: SkipSettings
+    private val repository: RemoteRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
             modelClass.isAssignableFrom(PlayerViewModel::class.java) -> PlayerViewModel(repository) as T
-            modelClass.isAssignableFrom(SettingsViewModel::class.java) -> SettingsViewModel(repository, skipSettings) as T
+            modelClass.isAssignableFrom(SettingsViewModel::class.java) -> SettingsViewModel(repository) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class")
         }
     }

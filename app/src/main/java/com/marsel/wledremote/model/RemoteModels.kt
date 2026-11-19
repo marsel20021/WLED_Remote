@@ -103,5 +103,10 @@ data class AmbilightSettingsUiState(
     val labGlow: String = "mid",
     val labJitter: String = "mid",
     val labFps: String = "60",
-    val labDetectBars: Boolean = false
+    val labDetectBars: Boolean = false,
+
+    // Пропуск заставок: решает и хранит ТВ, телефон только переключает
+    val skipEnabled: Boolean = true,
+    val skipRecap: Boolean = true,
+    val skipHold: Boolean = true
 )

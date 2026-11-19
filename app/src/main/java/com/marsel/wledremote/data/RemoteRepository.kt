@@ -7,6 +7,8 @@ import com.marsel.wledremote.model.CaptureMode
 import com.marsel.wledremote.model.ConnectionStatus
 import com.marsel.wledremote.model.EngineKind
 import com.marsel.wledremote.model.PlaybackUiState
+import com.marsel.wledremote.skip.SkipUiState
+import com.marsel.wledremote.skip.SkipWire
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
@@ -32,6 +34,14 @@ interface RemoteRepository {
     val settingsState: StateFlow<AmbilightSettingsUiState>
     val connectionStatus: StateFlow<ConnectionStatus>
     val playlist: StateFlow<List<String>>
+
+    /** Состояние кнопки пропуска. Считает ТВ, сюда приходит готовое. */
+    val skipState: StateFlow<SkipUiState>
+
+    fun skipNow()
+    fun skipCancel()
+    fun skipUndo()
+    fun skipPickSeason(season: Int)
 
     fun connect(ip: String)
     fun togglePlayPause()
@@ -64,6 +74,9 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
 
     private val _playlist = MutableStateFlow<List<String>>(emptyList())
     override val playlist: StateFlow<List<String>> = _playlist
+
+    private val _skipState = MutableStateFlow(SkipUiState())
+    override val skipState: StateFlow<SkipUiState> = _skipState
 
     private var connectionJob: Job? = null
     private var wsSession: DefaultClientWebSocketSession? = null
@@ -99,6 +112,7 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
                 } catch (e: Exception) {
                 }
                 wsSession = null
+                _skipState.value = SkipUiState()
                 _connectionStatus.value = ConnectionStatus.DISCONNECTED
                 delay(3000)
             }
@@ -145,10 +159,14 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
                         labGlow = json.optString("labGlow", current.labGlow),
                         labJitter = json.optString("labJitter", current.labJitter),
                         labFps = json.optString("labFps", current.labFps),
-                        labDetectBars = json.optBoolean("labDetectBars", current.labDetectBars)
+                        labDetectBars = json.optBoolean("labDetectBars", current.labDetectBars),
+                        skipEnabled = json.optBoolean("skipEnabled", current.skipEnabled),
+                        skipRecap = json.optBoolean("skipRecap", current.skipRecap),
+                        skipHold = json.optBoolean("skipHold", current.skipHold)
                     )
                 }
             }
+            SkipWire.TYPE -> _skipState.value = SkipWire.parse(json)
             "playlist" -> {
                 val arr = json.optJSONArray("items")
                 if (arr != null) {
@@ -224,6 +242,9 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
             put("labJitter", settings.labJitter)
             put("labFps", settings.labFps)
             put("labDetectBars", settings.labDetectBars)
+            put("skipEnabled", settings.skipEnabled)
+            put("skipRecap", settings.skipRecap)
+            put("skipHold", settings.skipHold)
         }
         sendCommand(json)
     }
@@ -242,6 +263,22 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
 
     override fun skipPrevious() {
         sendCommand(JSONObject().put("action", "skipPrev"))
+    }
+
+    override fun skipNow() {
+        sendCommand(JSONObject().put("action", "skipNow"))
+    }
+
+    override fun skipCancel() {
+        sendCommand(JSONObject().put("action", "skipCancel"))
+    }
+
+    override fun skipUndo() {
+        sendCommand(JSONObject().put("action", "skipUndo"))
+    }
+
+    override fun skipPickSeason(season: Int) {
+        sendCommand(JSONObject().put("action", "skipPickSeason").put("season", season))
     }
 
     override fun playIndex(index: Int) {
