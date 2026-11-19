@@ -21,7 +21,9 @@ data class SkipUndo(val kind: SkipKind)
 data class SkipUiState(
     val offer: SkipOffer? = null,
     val seasonChoice: SeasonChoice? = null,
-    val undo: SkipUndo? = null
+    val undo: SkipUndo? = null,
+    /** Сериал не нашёлся или не загрузился: сезонов нет, надо сказать об этом. */
+    val seasonsUnavailable: Boolean = false
 )
 
 /** Разбор сообщения {"type":"skipState",...} от ТВ. Без Android, чтобы проверить обычными тестами. */
@@ -39,7 +41,7 @@ object SkipWire {
             val seasons = (0 until arr.length()).map { arr.optInt(it, 0) }.filter { it >= 1 }
             if (seasons.isEmpty()) null else SeasonChoice(seasons, if (o.isNull("selected")) null else o.optInt("selected"))
         }
-        return SkipUiState(offer, choice, undo)
+        return SkipUiState(offer, choice, undo, json.optBoolean("seasonsUnavailable", false))
     }
 
     private fun kindOf(name: String): SkipKind? = SkipKind.values().firstOrNull { it.name == name }

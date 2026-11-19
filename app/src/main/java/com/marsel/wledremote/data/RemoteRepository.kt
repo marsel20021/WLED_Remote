@@ -1,6 +1,7 @@
 package com.marsel.wledremote.data
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import com.marsel.wledremote.model.AmbilightSettingsUiState
 import com.marsel.wledremote.model.CaptureMode
@@ -123,7 +124,58 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
         val json = try { JSONObject(text) } catch (e: Exception) { return }
 
         when (json.optString("type")) {
-            "settingsSnapshot" -> {
+            "settingsSnapshot" -> onSettingsSnapshot(json)
+            SkipWire.TYPE -> _skipState.value = SkipWire.parse(json)
+            "playlist" -> {
+                val arr = json.optJSONArray("items")
+                if (arr != null) {
+                    _playlist.value = (0 until arr.length()).map { arr.getString(it) }
+                }
+            }
+            "playbackState" -> {
+                val newTitle = json.optString("title", "Без названия")
+                val newMovie = json.optString("movieTitle", "").takeIf { it.isNotBlank() }
+                if (newTitle != lastLoggedTitle || newMovie != lastLoggedMovie) {
+                    lastLoggedTitle = newTitle
+                    lastLoggedMovie = newMovie
+                    // Смотреть в logcat по тегу WledRemote: что именно прислал плеер/Vokino
+                    Log.d("WledRemote", "title='$newTitle' movieTitle='$newMovie' extras=${json.optString("intentInfo")}")
+                }
+                _playbackState.update { state ->
+                    state.copy(
+                        title = newTitle,
+                        movieTitle = newMovie,
+                        isPlaying = json.optBoolean("isPlaying", false),
+                        positionMs = json.optLong("positionMs", 0L),
+                        durationMs = json.optLong("durationMs", 0L),
+                        currentIndex = json.optInt("currentIndex", state.currentIndex)
+                    )
+                }
+            }
+        }
+    }
+
+    // Настройки ТВ главные. Пока человек сам двигает настройку на телефоне, ответ ТВ не применяем,
+    // иначе ползунок прыгает. Самый свежий снимок запоминаем и применяем, когда правки закончились.
+    @Volatile private var lastLocalEditAt = 0L
+    @Volatile private var deferredSnapshot: JSONObject? = null
+    private var deferJob: Job? = null
+
+    private fun onSettingsSnapshot(json: JSONObject) {
+        if (SystemClock.elapsedRealtime() - lastLocalEditAt >= LOCAL_EDIT_QUIET_MS) {
+            applySettingsSnapshot(json)
+            return
+        }
+        deferredSnapshot = json
+        if (deferJob?.isActive == true) return
+        deferJob = scope.launch {
+            while (SystemClock.elapsedRealtime() - lastLocalEditAt < LOCAL_EDIT_QUIET_MS) delay(100)
+            deferredSnapshot?.let { applySettingsSnapshot(it) }
+            deferredSnapshot = null
+        }
+    }
+
+    private fun applySettingsSnapshot(json: JSONObject) {
                 _settingsState.update { current ->
                     current.copy(
                         wledIp = json.optString("wledIp", current.wledIp),
@@ -165,35 +217,6 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
                         skipHold = json.optBoolean("skipHold", current.skipHold)
                     )
                 }
-            }
-            SkipWire.TYPE -> _skipState.value = SkipWire.parse(json)
-            "playlist" -> {
-                val arr = json.optJSONArray("items")
-                if (arr != null) {
-                    _playlist.value = (0 until arr.length()).map { arr.getString(it) }
-                }
-            }
-            "playbackState" -> {
-                val newTitle = json.optString("title", "Без названия")
-                val newMovie = json.optString("movieTitle", "").takeIf { it.isNotBlank() }
-                if (newTitle != lastLoggedTitle || newMovie != lastLoggedMovie) {
-                    lastLoggedTitle = newTitle
-                    lastLoggedMovie = newMovie
-                    // Смотреть в logcat по тегу WledRemote: что именно прислал плеер/Vokino
-                    Log.d("WledRemote", "title='$newTitle' movieTitle='$newMovie' extras=${json.optString("intentInfo")}")
-                }
-                _playbackState.update { state ->
-                    state.copy(
-                        title = newTitle,
-                        movieTitle = newMovie,
-                        isPlaying = json.optBoolean("isPlaying", false),
-                        positionMs = json.optLong("positionMs", 0L),
-                        durationMs = json.optLong("durationMs", 0L),
-                        currentIndex = json.optInt("currentIndex", state.currentIndex)
-                    )
-                }
-            }
-        }
     }
 
     private fun sendCommand(json: JSONObject) {
@@ -286,6 +309,7 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
     }
 
     override fun updateSettings(update: (AmbilightSettingsUiState) -> AmbilightSettingsUiState) {
+        lastLocalEditAt = SystemClock.elapsedRealtime()
         var ipChanged = false
         var latest = _settingsState.value
         _settingsState.update { old ->
@@ -295,5 +319,10 @@ class NetworkRemoteRepository(context: Context) : RemoteRepository {
             updated
         }
         if (!ipChanged) syncSettingsWithTv(latest)
+    }
+
+    private companion object {
+        /** Сколько после своей правки не слушаем снимки ТВ. */
+        const val LOCAL_EDIT_QUIET_MS = 1_200L
     }
 }

@@ -48,4 +48,12 @@ class SkipWireTest {
         assertNull(s.offer)
         assertEquals(4, s.seasonChoice!!.selected)
     }
+
+    @Test
+    fun `сезоны не загрузились - флаг доходит, без него false`() {
+        val bad = SkipWire.parse(JSONObject("""{"type":"skipState","seasonsUnavailable":true}"""))
+        assertTrue(bad.seasonsUnavailable)
+        val old = SkipWire.parse(JSONObject("""{"type":"skipState","offer":null}"""))
+        assertFalse(old.seasonsUnavailable)
+    }
 }
