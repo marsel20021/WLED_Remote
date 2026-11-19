@@ -26,8 +26,11 @@ sealed interface SkipAction {
     data object NextEpisode : SkipAction
 }
 
-/** Что показать на экране: идёт отсчёт, progress 0..1, secondsLeft - сколько секунд осталось. */
-data class SkipOffer(val kind: SkipKind, val progress: Float, val secondsLeft: Int)
+/**
+ * Что показать на экране. Обычно идёт отсчёт: progress 0..1, secondsLeft - сколько секунд осталось.
+ * manual = true: отсчёта нет, просто кнопка, пока человек внутри отрезка.
+ */
+data class SkipOffer(val kind: SkipKind, val progress: Float, val secondsLeft: Int, val manual: Boolean = false)
 
 /** Команда на прыжок. returnToMs: куда вернуть по кнопке "Вернуть" (null - вернуть нельзя). */
 data class SkipFire(val kind: SkipKind, val action: SkipAction, val returnToMs: Long?)

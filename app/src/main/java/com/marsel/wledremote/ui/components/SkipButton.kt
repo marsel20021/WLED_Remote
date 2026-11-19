@@ -46,7 +46,9 @@ fun SkipButton(
     onUndo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (offer != null) {
+    if (offer != null && offer.manual) {
+        ManualPill(offer, onSkip, modifier)
+    } else if (offer != null) {
         OfferPill(offer, onSkip, onCancel, modifier)
     } else if (undo != null) {
         UndoPill(undo, onUndo, modifier)
@@ -117,6 +119,26 @@ private fun OfferPill(offer: SkipOffer, onSkip: () -> Unit, onCancel: () -> Unit
                 )
             }
         }
+    }
+}
+
+/** Кнопка без отсчёта: висит, пока человек внутри отрезка. */
+@Composable
+private fun ManualPill(offer: SkipOffer, onSkip: () -> Unit, modifier: Modifier) {
+    GlassPill(modifier = modifier, onClick = onSkip) {
+        Icon(
+            Icons.Filled.SkipNext,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = labelFor(offer.kind),
+            color = MaterialTheme.colorScheme.onBackground,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 

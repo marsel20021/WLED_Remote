@@ -58,7 +58,8 @@ data class SkipSnapshot(
 
 /**
  * Решает, что показать и когда прыгать. Без Android, чтобы проверить обычными тестами.
- * Каждый отрезок срабатывает один раз за серию; повторный просмотр с начала это сбрасывает.
+ * Автоскип каждого отрезка срабатывает один раз за серию; повторный просмотр с начала это сбрасывает.
+ * Пока человек внутри отрезка, кнопка остаётся (после первого раза уже без отсчёта).
  */
 class SkipDecider {
     private var key: String? = null
@@ -92,6 +93,11 @@ class SkipDecider {
         val seg = activeSegment(tl, s) ?: return idle()
         offeredKind = seg.kind
 
+        if (seg.kind in done) {
+            // Этот отрезок уже пропускали или отменили: автоскипа нет, но кнопка остаётся, пока мы внутри
+            countdownKind = null
+            return SkipStep(SkipOffer(seg.kind, 0f, 0, manual = true), null)
+        }
         if (!s.isPlaying) {
             // Пауза: кнопка остаётся, отсчёт обнуляется и пойдёт заново после продолжения
             countdownKind = null
@@ -117,7 +123,7 @@ class SkipDecider {
         return fire(seg, tl, s)
     }
 
-    /** Человек нажал ✕: этот отрезок в этой серии больше не предлагаем. */
+    /** Человек нажал ✕: автоскипа для этого отрезка в этой серии больше не будет, но кнопка остаётся. */
     fun cancel() {
         offeredKind?.let { done.add(it) }
         countdownKind = null
@@ -145,7 +151,6 @@ class SkipDecider {
 
     private fun activeSegment(tl: SkipTimeline, s: SkipSnapshot): SkipSegment? {
         for (kind in SkipKind.values()) {
-            if (kind in done) continue
             // На последней серии титры не пропускаем: непонятно, что сделает ТВ в конце плейлиста
             if (kind == SkipKind.CREDITS && !s.hasNextEpisode) continue
             if (kind == SkipKind.RECAP && !s.allowRecap) continue
