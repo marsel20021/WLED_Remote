@@ -1,5 +1,6 @@
 package com.marsel.wledremote.skip
 
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -14,6 +15,8 @@ object SkipRules {
     const val END_MARGIN_MS = 1_000L
     const val RESTART_BELOW_MS = 5_000L     // серию запустили с начала
     const val RESTART_AFTER_MS = 60_000L    // ...хотя до этого мы были уже далеко
+    const val SEEK_JUMP_MS = 2_000L         // позиция ушла от обычного хода больше чем на это - человек перемотал
+    const val BUTTON_DELAY_MS = 1_000L      // кнопка без отсчёта появляется, когда после перемотки прошла секунда
 
     fun isUsable(seg: SkipSegment, durationMs: Long): Boolean {
         if (seg.startMs < 0) return false
@@ -71,6 +74,9 @@ class SkipDecider {
     private var countdownKind: SkipKind? = null
     private var countdownStart = 0L
     private var offeredKind: SkipKind? = null
+    private var lastPos = -1L
+    private var lastPosAt = 0L
+    private var lastSeekAt = NEVER
 
     /** Данные для серии готовы (или их нет: timeline = null). Ответ для чужой серии игнорируем. */
     fun setTimeline(forKey: String, timeline: SkipTimeline?) {
@@ -79,6 +85,7 @@ class SkipDecider {
 
     fun update(s: SkipSnapshot): SkipStep {
         if (s.episodeKey != key) reset(s)
+        val jumped = trackJump(s)
         if (!s.connected) return idle()
         val tl = timeline ?: return idle()
         if (s.nowMs - keyChangedAt < SkipRules.SETTLE_MS) return idle()
@@ -90,12 +97,20 @@ class SkipDecider {
         }
         maxPosition = max(maxPosition, s.positionMs)
 
-        val seg = activeSegment(tl, s) ?: return idle()
+        val seg = activeSegment(tl, s)
+        if (jumped) {
+            // Человек сам перемотал: во время отсчёта он отменяется, а в отрезок, куда попали, автоскип уже не пойдёт
+            lastSeekAt = s.nowMs
+            countdownKind = null
+            if (seg != null) done.add(seg.kind)
+        }
+        if (seg == null) return idle()
         offeredKind = seg.kind
 
         if (seg.kind in done) {
-            // Этот отрезок уже пропускали или отменили: автоскипа нет, но кнопка остаётся, пока мы внутри
+            // Автоскипа нет, но кнопка остаётся, пока мы внутри. Пока человек мотает, её не показываем
             countdownKind = null
+            if (s.nowMs - lastSeekAt < SkipRules.BUTTON_DELAY_MS) return idle()
             return SkipStep(SkipOffer(seg.kind, 0f, 0, manual = true), null)
         }
         if (!s.isPlaying) {
@@ -141,6 +156,27 @@ class SkipDecider {
         done.clear()
         countdownKind = null
         offeredKind = null
+        lastPos = -1L
+        lastSeekAt = NEVER
+    }
+
+    /**
+     * Замечает перемотку: позиция изменилась не так, как идёт воспроизведение. Свои прыжки, первые секунды
+     * после смены серии и паузу не считаем. Работает одинаково для пульта и для родного пульта ТВ.
+     */
+    private fun trackJump(s: SkipSnapshot): Boolean {
+        val moved = s.positionMs != lastPos
+        var jumped = false
+        if (lastPos >= 0 && moved) {
+            val expected = lastPos + if (s.isPlaying) s.nowMs - lastPosAt else 0L
+            val calm = s.nowMs - keyChangedAt >= SkipRules.SETTLE_MS && s.nowMs >= quietUntil
+            jumped = calm && abs(s.positionMs - expected) > SkipRules.SEEK_JUMP_MS
+        }
+        if (moved || lastPos < 0 || !s.isPlaying) {
+            lastPos = s.positionMs
+            lastPosAt = s.nowMs
+        }
+        return jumped
     }
 
     private fun idle(): SkipStep {
@@ -189,5 +225,9 @@ class SkipDecider {
         if (s.hasNextEpisode) return SkipFire(seg.kind, SkipAction.NextEpisode, null)
         val last = max(s.positionMs, s.durationMs - SkipRules.END_MARGIN_MS)
         return SkipFire(seg.kind, SkipAction.SeekTo(last), seg.startMs)
+    }
+
+    private companion object {
+        const val NEVER = -1_000_000L
     }
 }
