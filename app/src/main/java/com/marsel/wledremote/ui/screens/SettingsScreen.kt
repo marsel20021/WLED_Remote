@@ -41,6 +41,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val skipEnabled by viewModel.skipEnabled.collectAsStateWithLifecycle()
     val skipRecap by viewModel.skipRecap.collectAsStateWithLifecycle()
+    val skipHold by viewModel.skipHold.collectAsStateWithLifecycle()
 
     var wledIp by remember(state.wledIp) { mutableStateOf(state.wledIp) }
     var udpPort by remember(state.udpPort) { mutableStateOf(state.udpPort) }
@@ -168,6 +169,12 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             LabeledSwitch("Пропускать пересказ", skipRecap, viewModel::updateSkipRecap)
             Text(
                 "\"В предыдущих сериях\" в начале серии",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            LabeledSwitch("Держать кнопку пропуска", skipHold, viewModel::updateSkipHold)
+            Text(
+                "Остаётся, пока ты внутри заставки, пересказа или титров, даже после перемотки. Автоскип второй раз не срабатывает",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

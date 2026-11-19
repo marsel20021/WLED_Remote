@@ -46,7 +46,7 @@ object SkipRules {
 
 /**
  * Снимок того, что сейчас играет. nowMs - монотонное время телефона.
- * allowRecap: пропускать ли пересказ.
+ * allowRecap: пропускать ли пересказ. allowHold: держать ли кнопку внутри отрезка после перемотки/пропуска.
  */
 data class SkipSnapshot(
     val episodeKey: String,
@@ -56,7 +56,8 @@ data class SkipSnapshot(
     val connected: Boolean,
     val hasNextEpisode: Boolean,
     val nowMs: Long,
-    val allowRecap: Boolean = true
+    val allowRecap: Boolean = true,
+    val allowHold: Boolean = true
 )
 
 /**
@@ -110,6 +111,7 @@ class SkipDecider {
         if (seg.kind in done) {
             // Автоскипа нет, но кнопка остаётся, пока мы внутри. Пока человек мотает, её не показываем
             countdownKind = null
+            if (!s.allowHold) return idle()
             if (s.nowMs - lastSeekAt < SkipRules.BUTTON_DELAY_MS) return idle()
             return SkipStep(SkipOffer(seg.kind, 0f, 0, manual = true), null)
         }

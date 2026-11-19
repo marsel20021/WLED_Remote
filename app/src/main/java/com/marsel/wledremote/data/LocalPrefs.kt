@@ -18,6 +18,11 @@ class LocalPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_SKIP_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_SKIP_ENABLED, value).apply()
 
+    /** Держать кнопку пропуска, пока человек внутри отрезка (даже после перемотки). По умолчанию включено. */
+    var skipHold: Boolean
+        get() = prefs.getBoolean(KEY_SKIP_HOLD, true)
+        set(value) = prefs.edit().putBoolean(KEY_SKIP_HOLD, value).apply()
+
     /** Пропускать пересказ ("в предыдущих сериях"). По умолчанию включено. */
     var skipRecap: Boolean
         get() = prefs.getBoolean(KEY_SKIP_RECAP, true)
@@ -27,5 +32,6 @@ class LocalPrefs(context: Context) {
         private const val KEY_TV_IP = "tv_ip"
         private const val KEY_SKIP_ENABLED = "skip_enabled"
         private const val KEY_SKIP_RECAP = "skip_recap"
+        private const val KEY_SKIP_HOLD = "skip_hold"
     }
 }

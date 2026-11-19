@@ -32,7 +32,9 @@ data class SkipInput(
     val playlist: List<String>,
     val nowMs: Long,
     /** Пропускать ли пересказ (настройка). */
-    val allowRecap: Boolean = true
+    val allowRecap: Boolean = true,
+    /** Держать кнопку пропуска внутри отрезка после перемотки (настройка). */
+    val allowHold: Boolean = true
 )
 
 /**
@@ -150,7 +152,8 @@ class SkipEngine(
             connected = input.connected,
             hasNextEpisode = pb.currentIndex < input.playlist.size - 1,
             nowMs = now,
-            allowRecap = input.allowRecap
+            allowRecap = input.allowRecap,
+            allowHold = input.allowHold
         )
         lastSnap = snap
         val step = decider.update(snap)

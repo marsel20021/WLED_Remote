@@ -24,6 +24,7 @@ class SkipController(
     private val repository: RemoteRepository,
     private val enabled: StateFlow<Boolean>,
     private val allowRecap: StateFlow<Boolean>,
+    private val allowHold: StateFlow<Boolean>,
     cache: SkipCache
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -86,7 +87,8 @@ class SkipController(
                     playback = repository.playbackState.value,
                     playlist = repository.playlist.value,
                     nowMs = now(),
-                    allowRecap = allowRecap.value
+                    allowRecap = allowRecap.value,
+                    allowHold = allowHold.value
                 )
                 val state = engine.evaluate(input)
                 _ui.value = state

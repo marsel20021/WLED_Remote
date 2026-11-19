@@ -85,6 +85,8 @@ class SettingsViewModel(
     val skipEnabled: StateFlow<Boolean> = skipSettings.enabled
     fun updateSkipEnabled(value: Boolean) = skipSettings.setEnabled(value)
     val skipRecap: StateFlow<Boolean> = skipSettings.recap
+    val skipHold: StateFlow<Boolean> = skipSettings.hold
+    fun updateSkipHold(value: Boolean) = skipSettings.setHold(value)
     fun updateSkipRecap(value: Boolean) = skipSettings.setRecap(value)
 
     fun updateBrightness(value: Int) = repository.updateSettings { it.copy(brightness = value) }
